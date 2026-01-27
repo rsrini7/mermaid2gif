@@ -43,7 +43,7 @@ class FFmpegProcessor:
         video_path: Path,
         output_path: Path,
         fps: Optional[int] = None,
-        scale_width: int = 800,
+        scale_width: int = 1280,
     ) -> None:
         """
         Convert video to optimized GIF using palette-based encoding.
@@ -85,14 +85,23 @@ class FFmpegProcessor:
             # Split the video stream into two branches with labels
             split_outputs = input_stream.video.split()
             
-            # Branch 1: Generate palette
-            palette = split_outputs[0].filter("palettegen", stats_mode="full")
+            # Branch 1: Generate high-quality palette with more colors
+            palette = split_outputs[0].filter(
+                "palettegen",
+                max_colors=256,
+                stats_mode="diff"
+            )
             
-            # Branch 2: Scale and prepare for palette application
-            scaled = split_outputs[1].filter("scale", w=scale_width, h=-1)
+            # Branch 2: Scale to higher resolution for better quality
+            scaled = split_outputs[1].filter("scale", w=scale_width, h=-1, flags="lanczos")
             
-            # Apply palette to scaled video
-            output = ffmpeg.filter([scaled, palette], "paletteuse", dither="bayer", bayer_scale=3)
+            # Apply palette with improved dithering
+            output = ffmpeg.filter(
+                [scaled, palette],
+                "paletteuse",
+                dither="sierra2_4a",
+                diff_mode="rectangle"
+            )
             
             # Set frame rate
             output = output.filter("fps", fps=fps)
