@@ -12,6 +12,17 @@ The mermaid-gif application uses Draw.io's embed mode to render Mermaid diagrams
 
 ---
 
+## URLs tried
+
+https://embed.diagrams.net/?embed=1&proto=json
+
+https://embed.diagrams.net/?embed=1&ui=simple&proto=json&modified=0&libraries=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1
+
+https://embed.diagrams.net/?embed=1&ui=min&spin=1&proto=json&configure=1
+
+https://embed.diagrams.net/?embed=1&ui=atlas&spin=1&modified=unsavedChanges&proto=json&configure=1&chrome=0
+
+
 ## Approaches Attempted
 
 ### Approach 1: Optimistic Handshake Strategy
@@ -202,7 +213,76 @@ await App.importData(code, 'mermaid');
 
 ---
 
-## Key Findings
+### Approach 9: React-Based Implementation with ui=atlas
+
+**Date:** Final session  
+**Method:** Replicate working React code patterns with `ui=atlas` and dual event handling  
+**Test Script:** `test_react_approach.py`  
+**Inspiration:** Found working React component that successfully uses Draw.io embed
+
+**Key Insights from React Code:**
+1. Listen for **BOTH** `init` AND `configure` events (newer versions use `configure`)
+2. Use `ui=atlas` instead of `ui=min`
+3. Implement timeout fallback (force load after 3-5 seconds)
+4. Use `autosave: 1` in load message
+5. Proper mxfile XML structure with full metadata
+
+**Implementation:**
+```javascript
+// Accept BOTH init and configure as initialization signals
+if (message.event === 'init' || message.event === 'configure') {
+    console.log('Draw.io initialized via:', message.event);
+    initialized = true;
+    resolve({ success: true, event: message.event });
+}
+
+// Timeout fallback
+setTimeout(() => {
+    if (!initialized) {
+        console.warn('Init timeout - forcing load');
+        resolve({ success: false, timeout: true });
+    }
+}, 5000);
+```
+
+**URL Used:**
+```
+https://embed.diagrams.net/?embed=1&ui=atlas&spin=1&modified=unsavedChanges&proto=json&configure=1
+```
+
+**XML Format:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="embed.diagrams.net" modified="2024-01-27T00:00:00.000Z" agent="TestAgent" version="21.0.0" etag="" type="embed">
+  <diagram name="Test" id="test">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="Hello World" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="150" width="120" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+```
+
+**Result:** ❌ **FAILED**
+- Init result: `{'success': False, 'timeout': True, 'messages': []}`
+- **No messages received at all** - not even echoes
+- Timeout after 5 seconds
+- No `init` or `configure` events
+- Canvas remained empty
+
+**Root Cause:** Even with React code's proven patterns, Draw.io embed mode in Playwright environment fails to respond. The `ui=atlas` parameter and dual event handling made no difference. This confirms the issue is **environmental/contextual**, not just configuration-based.
+
+**Critical Finding:** The React code works in browser contexts but **not in Playwright automation**. This suggests:
+- Origin/referrer validation blocking automation
+- Browser fingerprinting detecting Playwright despite stealth config
+- Iframe sandboxing restrictions in automated contexts
+- Undocumented requirements for programmatic access
+
 
 ### What Works ✅
 
@@ -273,17 +353,22 @@ The `postMessage` API in `embed.diagrams.net` appears designed for **iframe embe
 | `test_explore_apis.py` | Enumerate available APIs | Found mxGraph but no editor instance |
 | `test_xml_render.py` | Send Draw.io XML format | XML accepted, no rendering |
 | `test_configure_load.py` | Full configure/init/load workflow | Init never received |
+| `test_react_approach.py` | React-based with ui=atlas | No messages, timeout |
 
 ---
 
 ## Conclusion
 
-**Draw.io's embed mode `postMessage` API is fundamentally non-functional for programmatic diagram loading**, despite:
+**Draw.io's embed mode `postMessage` API is fundamentally non-functional for programmatic diagram loading in Playwright**, despite:
 
 - Successful stealth configuration
-- Working message delivery
+- Working message delivery (in some tests)
 - Correct XML format
 - Proper handshake sequence
+- React-based proven patterns with `ui=atlas`
+- Dual `init`/`configure` event handling
+
+**9 comprehensive approaches tested** - all failed to render diagrams.
 
 The API either:
 
@@ -291,6 +376,7 @@ The API either:
 2. Is restricted to specific origins/contexts
 3. Is not intended for external automation
 4. Has breaking changes not reflected in documentation
+5. **Detects and blocks Playwright automation** despite stealth configuration
 
 ---
 
