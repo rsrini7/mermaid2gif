@@ -101,21 +101,39 @@ All configuration is managed through environment variables or `.env` file:
 
 ## Project Structure
 
-```
 mermaid-gif/
 ├── src/
-│   ├── agents/                 # LLM-powered agents
-│   ├── core/                   # Core system components
-│   ├── engine/                 # Deterministic nodes
-│   │   ├── mermaid_renderer.py # (impl in drawio_driver.py)
-│   │   ├── animation_applicator.py
-│   │   ├── capture_controller.py
-│   │   └── ffmpeg_processor.py
-│   └── utils/
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── fixer.py            # Mermaid syntax repair agent
+│   │   └── intent.py           # Text-to-Mermaid conversion agent
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py           # Pydantic configuration
+│   │   ├── exceptions.py       # Custom exception hierarchy
+│   │   ├── graph.py            # LangGraph orchestration
+│   │   └── state.py            # Shared graph state
+│   ├── engine/
+│   │   ├── __init__.py
+│   │   ├── animation_applicator.py # JS path-based animation
+│   │   ├── capture_controller.py   # Playwright video capture
+│   │   ├── ffmpeg_processor.py     # FFmpeg transcoding & optimization
+│   │   ├── mermaid_renderer.py     # Native Mermaid.js rendering
+│   │   └── mermaid_validator.py    # Syntax validation
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── logger.py           # Structured logging
+│   ├── __init__.py
+│   └── main.py                 # CLI entry point
 ├── tests/
+│   ├── mocks/
+│   ├── __init__.py
+│   └── test_smoke.py           # Mock-based end-to-end test
+├── .env.example
 ├── Dockerfile
-└── .env.example
-```
+├── pyproject.toml
+├── README.md
+└── REQUIREMENTS.md
 
 ## Critical Constraints & Design
 
