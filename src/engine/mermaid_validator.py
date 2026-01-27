@@ -64,7 +64,8 @@ class MermaidValidator:
             
             # Basic syntax validation rules
             errors = []
-            lines = mermaid_code.strip().split('\n')
+            stripped_code = mermaid_code.strip()
+            lines = stripped_code.split('\n')
             
             # Check for diagram type declaration
             first_line = lines[0].strip().lower()
@@ -81,6 +82,15 @@ class MermaidValidator:
                     "message": f"Invalid or missing diagram type. Must start with one of: {', '.join(valid_types)}",
                     "line": 1
                 })
+            
+            # Check for single-line error (common with simple prompts)
+            # e.g., "graph TD A-->B" without semicolon or newline
+            if len(lines) == 1 and ("-->" in first_line or "---" in first_line):
+                if ";" not in first_line:
+                    errors.append({
+                        "message": "Multiple statements on a single line without semicolons. Mermaid requires newlines or semicolons between statements.",
+                        "line": 1
+                    })
             
             # Check for basic syntax issues
             for i, line in enumerate(lines, 1):

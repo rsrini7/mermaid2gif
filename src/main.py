@@ -96,8 +96,14 @@ def main(
             console.print(f"[cyan]Reading Mermaid diagram from:[/cyan] {input_file}")
         else:
             raw_input = prompt
-            input_type = "text"
-            console.print(f"[cyan]Processing prompt:[/cyan] {prompt}")
+            # Auto-detect Mermaid syntax
+            mermaid_keywords = ["graph ", "flowchart ", "sequenceDiagram", "classDiagram", "erDiagram", "gantt", "pie"]
+            if any(raw_input.strip().lower().startswith(k.lower()) for k in mermaid_keywords) or "-->" in raw_input:
+                input_type = "mermaid"
+                console.print(f"[cyan]Detected Mermaid diagram:[/cyan] {prompt[:50]}...")
+            else:
+                input_type = "text"
+                console.print(f"[cyan]Processing prompt:[/cyan] {prompt}")
         
         # Initialize state
         initial_state = create_initial_state(
