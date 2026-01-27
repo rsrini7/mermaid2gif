@@ -56,7 +56,13 @@ class AnimationApplicator:
         
         launch_args = {
             "headless": True,
-            "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+            "args": [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+            ],
         }
         
         if self.config.chromium_executable_path:
@@ -64,8 +70,19 @@ class AnimationApplicator:
             
         self.browser = await self.playwright.chromium.launch(**launch_args)
         
-        # Use standard viewport
-        self.page = await self.browser.new_page()
+        # Create context with stealth configuration
+        context = await self.browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            java_script_enabled=True,
+        )
+        
+        self.page = await context.new_page()
+        await self.page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        """)
         
         return self
     

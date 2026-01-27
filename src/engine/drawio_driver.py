@@ -133,12 +133,33 @@ async def _render_diagram_node_async(state: GraphState) -> GraphState:
             raise DrawIOImportError("No Mermaid code in state")
             
         # Launch browser just for this validation step
+        # CRITICAL: Add stealth args to bypass Draw.io headless detection
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                headless=True, 
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",  # Critical for stealth
+                    "--disable-features=IsolateOrigins,site-per-process",
+                ]
             )
-            page = await browser.new_page()
+            
+            # Create context with realistic user agent and permissions
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                java_script_enabled=True,
+            )
+            
+            # Override navigator.webdriver to hide automation
+            page = await context.new_page()
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
             
             driver = DrawIODriver(page)
             await driver.render_mermaid(mermaid_code)

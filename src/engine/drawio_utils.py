@@ -6,7 +6,7 @@ required to robustly drive the Draw.io embed mode using the specific 'proto=json
 workflow and 'mxGraph' instance capture technique discovered during debugging.
 """
 
-DRAWIO_URL = "https://embed.diagrams.net/?embed=1&proto=json&configure=1&chrome=0&ui=min&noExitBtn=1&saveAndExit=0&noSaveBtn=1"
+DRAWIO_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1"
 DRAWIO_BASE_URL = "https://embed.diagrams.net"
 
 # Constants
@@ -33,10 +33,9 @@ PATCH_MXGRAPH_JS = """
 }
 """
 
-# 2. Wait for the 'init' message from the iframe
-#    This confirms the app is ready to receive configuration.
-# 2. Wait for the 'init' message from the iframe OR just proceed if we miss it
-#    Robust strategy: Listen for 'init', and spam 'configure' until we get it.
+# 2. Wait for Draw.io init message and send configure
+#    With configure=1, the app waits for configuration before fully loading
+#    We send configure messages repeatedly until we get the init acknowledgment
 WAIT_FOR_INIT_JS = """
 () => {
     return new Promise(resolve => {
@@ -61,7 +60,6 @@ WAIT_FOR_INIT_JS = """
         window.addEventListener('message', handler);
         
         // Heartbeat: Send configure message repeatedly until we get init
-        // This ensures that we catch the app whenever it starts listening.
         const sendConfigure = () => {
             console.log("Sending configure heartbeat...");
             window.postMessage(JSON.stringify({
@@ -74,12 +72,12 @@ WAIT_FOR_INIT_JS = """
         sendConfigure();
         configureInterval = setInterval(sendConfigure, 500);
         
-        // Timeout after 15s (increased from 3s/10s)
+        // Timeout after 15s
         setTimeout(() => {
             if (configureInterval) clearInterval(configureInterval);
             window.removeEventListener('message', handler);
             if (!initReceived) {
-                console.warn("Init timeout - stopped configure heartbeat. Proceeding anyway.");
+                console.warn("Init timeout - proceeding anyway");
                 resolve(true); 
             }
         }, 15000); 
@@ -98,7 +96,6 @@ SEND_CONFIGURE_JS = """
 """
 
 # 4. Send load message with Mermaid XML
-#    Takes `mermaid_code` as an argument.
 SEND_LOAD_JS = """
 (mermaidCode) => {
     window.postMessage(JSON.stringify({

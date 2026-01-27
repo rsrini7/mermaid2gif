@@ -91,6 +91,8 @@ class CaptureController:
                     "--disable-dev-shm-usage",
                     "--disable-accelerated-2d-canvas",
                     "--disable-gpu",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-features=IsolateOrigins,site-per-process",
                 ],
             }
             
@@ -100,15 +102,22 @@ class CaptureController:
             
             self.browser = await playwright.chromium.launch(**launch_options)
             
-            # Create context with video recording
+            # Create context with video recording AND stealth configuration
             self.context = await self.browser.new_context(
                 viewport=DEFAULT_VIEWPORT,
                 record_video_dir=str(record_video_dir),
                 record_video_size=DEFAULT_VIEWPORT,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                java_script_enabled=True,
             )
             
-            # Create page
+            # Create page with stealth script
             self.page = await self.context.new_page()
+            await self.page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
             self.page.set_default_timeout(self.config.browser_timeout_ms)
             
         except Exception as e:
