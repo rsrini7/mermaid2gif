@@ -99,22 +99,23 @@ class DrawIODriver:
             await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
             
             # 6. Verify Render
-            # Wait for SVG to appear and graph to be captured
+            # Wait for SVG to appear and graph to be captured AND content to be present
             logger.info("Waiting for render...")
-            for attempt in range(10): # 5 seconds max
+            for attempt in range(20): # 10 seconds max (increased from 5s)
                 status = await self.page.evaluate(CHECK_RENDER_JS)
-                if status.get("hasSvg") and status.get("hasCapturedGraph"):
-                    logger.info("Render verified and graph captured!")
+                if status.get("hasSvg") and status.get("hasCapturedGraph") and status.get("hasContent"):
+                    logger.info("Render verified and graph captured with content!")
                     return
                 await asyncio.sleep(0.5)
             
-            # If we get here, check one last time strictly for SVG (maybe capture failed?)
+            # If we get here, check one last time
             status = await self.page.evaluate(CHECK_RENDER_JS)
             if status.get("hasSvg"):
-                logger.warning("Render succeeded but graph capture failed. Animation might fail.")
-                return
-                
-            raise DrawIOImportError("Render validation failed: SVG not found in DOM")
+                 logger.warning(f"Render warning: SVG found but content validation failed (Captured: {status.get('hasCapturedGraph')}, Content: {status.get('hasContent')})")
+                 # We might still return here if we want to risk it, but for now let's warn
+                 return
+
+            raise DrawIOImportError("Render validation failed: SVG not found in DOM or graph empty")
 
         except Exception as e:
             if isinstance(e, DrawIOImportError):

@@ -109,14 +109,18 @@ class AnimationApplicator:
             # Verify Render & Capture
             logger.info("Waiting for graph to be captured...")
             graph_captured = False
-            for _ in range(10):
+            for _ in range(20): # 10s timeout
                 status = await self.page.evaluate(CHECK_RENDER_JS)
-                if status.get("hasSvg") and status.get("hasCapturedGraph"):
+                if status.get("hasSvg") and status.get("hasCapturedGraph") and status.get("hasContent"):
                     graph_captured = True
                     break
                 await asyncio.sleep(0.5)
-                
+            
             if not graph_captured:
+                # Log detailed status for debugging
+                logger.warning(f"Graph capture warning: {status}")
+                if not status.get("hasContent"):
+                     raise RenderingError("Render failed: Graph is empty (no cells found)")
                 raise RenderingError("Failed to capture mxGraph instance for animation")
                 
             # --- PHASE 2: APPLY ANIMATION ---
