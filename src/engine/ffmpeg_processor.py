@@ -238,6 +238,14 @@ def transcode_to_gif_node(state: GraphState) -> GraphState:
             "gif_size_mb": round(output_path.stat().st_size / 1024 / 1024, 2),
         })
         
+        # Clean up video file after successful processing
+        # We don't need the intermediate WebM file anymore
+        try:
+            video_path.unlink()
+            logger.info("Deleted input video file", metadata={"video_path": str(video_path)})
+        except Exception as e:
+            logger.warning("Failed to delete input video file", metadata={"error": str(e)})
+
         return state
         
     except Exception as e:

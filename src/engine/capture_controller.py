@@ -89,8 +89,10 @@ class CaptureController:
         output_dir = Path("./output")
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Generate video filename
-        video_path = output_dir / "mermaid_animation.webm"
+        # Generate dynamic video filename with timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]  # Up to milliseconds
+        video_path = output_dir / f"mermaid_{timestamp}.webm"
         
         self.logger.info("Initializing video capture", metadata={
             "duration": duration,
@@ -140,18 +142,18 @@ class CaptureController:
                 await context.close()
                 
                 # Get the recorded video path
-                # Playwright saves it with a unique name, we need to find it
+                # Playwright saves it with a unique name based on page ID
+                # We need to find the latest file created in the output dir
                 video_files = list(output_dir.glob("*.webm"))
                 if not video_files:
                     raise RuntimeError("No video file was created")
                 
-                # Rename to our desired filename
+                # Find the most recently created video file that matches Playwright's random naming
+                # Playwright generates random names, so we assume the newest one is ours
                 latest_video = max(video_files, key=lambda p: p.stat().st_mtime)
-                if latest_video != video_path:
-                    # Remove existing file if it exists
-                    if video_path.exists():
-                        video_path.unlink()
-                    latest_video.rename(video_path)
+                
+                # Rename to our desired dynamic filename
+                latest_video.rename(video_path)
                 
                 self.logger.info("Video saved", metadata={
                     "path": str(video_path),
