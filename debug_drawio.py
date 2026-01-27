@@ -19,10 +19,14 @@ async def debug_drawio():
         init_received = await page.evaluate("""() => {
             return new Promise(resolve => {
                 window.addEventListener('message', (event) => {
-                    const data = JSON.parse(event.data);
-                    if (data.event === 'init') {
-                        console.log('Init received!');
-                        resolve(true);
+                    try {
+                        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                        if (data.event === 'init') {
+                            console.log('Init received!');
+                            resolve(true);
+                        }
+                    } catch (e) {
+                        // Ignore parse errors from other messages
                     }
                 });
                 // Timeout fallback
@@ -32,6 +36,24 @@ async def debug_drawio():
         
         if not init_received:
             print("WARNING: No init message received. Trying to proceed anyway...")
+        
+        # Monkey Patch mxGraph.prototype.getModel to capture instance
+        print("Monkey-patching mxGraph.prototype.getModel...")
+        await page.evaluate("""() => {
+            if (typeof mxGraph !== 'undefined') {
+                const originalGetModel = mxGraph.prototype.getModel;
+                mxGraph.prototype.getModel = function() {
+                    if (!window.capturedGraph) {
+                        console.log("Captured graph instance via getModel!");
+                        window.capturedGraph = this;
+                    }
+                    return originalGetModel.apply(this, arguments);
+                }
+                console.log("mxGraph.prototype.getModel patched successfully");
+            } else {
+                console.error("mxGraph not defined, cannot patch");
+            }
+        }""")
         
         # Send Configure
         print("Sending configure...")
@@ -59,31 +81,15 @@ async def debug_drawio():
         print("Waiting for render...")
         await asyncio.sleep(5)
         
-        # Check for SVG
-        frame_count = len(page.frames)
-        print(f"Frame count: {frame_count}")
-        
-        has_svg = await page.evaluate("document.querySelectorAll('svg').length > 0")
-        print(f"Has SVG in main frame: {has_svg}")
-        
-        # Inspect Global Scope again
+        # Check for SVG and Captured Graph
         info = await page.evaluate("""() => {
-            const info = {};
-            
-            if (typeof App !== 'undefined') {
-                info.hasMainUi = typeof App.mainUi !== 'undefined';
-            }
-            
-            // Check HeadlessUi
-            if (typeof HeadlessEditorUi !== 'undefined') {
-                 info.headlessUiMethods = Object.keys(HeadlessEditorUi.prototype);
-            }
-            
-            // Search for graph in frames if main failed
-            // (Only works if same origin, but embed is same origin)
-            
-            return info;
+            return {
+                hasSvg: document.querySelectorAll('svg').length > 0,
+                hasCapturedGraph: typeof window.capturedGraph !== 'undefined',
+                graphModel: window.capturedGraph ? window.capturedGraph.getModel().constructor.name : null
+            };
         }""")
+        print(f"Result: {info}")
         
         import json
         print(json.dumps(info, indent=2))

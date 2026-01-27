@@ -6,7 +6,7 @@ style to diagram edges, creating the animated effect.
 
 CRITICAL FEATURES:
 - JavaScript injection only (NO UI automation)
-- Access to internal mxGraph API
+- Access to internal mxGraph API via captured instance
 - Style application to edges
 - Graph refresh for immediate effect
 """
@@ -20,12 +20,15 @@ from ..core.config import get_config
 from ..core.exceptions import AnimationError, RenderingError
 from ..core.state import GraphState
 from ..utils.logger import get_logger
-
-# Draw.io embed mode URL (MANDATORY)
-DRAWIO_EMBED_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1"
-
-# Fixed viewport for deterministic rendering
-DEFAULT_VIEWPORT = {"width": 1200, "height": 1200}
+from .drawio_utils import (
+    DRAWIO_URL,
+    PATCH_MXGRAPH_JS,
+    WAIT_FOR_INIT_JS,
+    SEND_CONFIGURE_JS,
+    SEND_LOAD_JS,
+    CHECK_RENDER_JS,
+    APPLY_ANIMATION_JS
+)
 
 logger = get_logger("animation_applicator")
 
@@ -35,9 +38,9 @@ class AnimationApplicator:
     Animation applicator using JavaScript injection.
     
     This applicator:
-    1. Accesses the internal mxGraph instance
-    2. Applies flow animation styles to edges
-    3. Refreshes the graph to show animations
+    1. Replicates the Draw.io renderings state
+    2. Accesses the internal mxGraph instance via capture
+    3. Applies flow animation styles to edges
     """
     
     def __init__(self):
@@ -56,13 +59,13 @@ class AnimationApplicator:
             "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
         }
         
-        if self.config.chromium_path:
-            launch_args["executable_path"] = self.config.chromium_path
+        if self.config.chromium_executable_path:
+            launch_args["executable_path"] = str(self.config.chromium_executable_path)
             
         self.browser = await self.playwright.chromium.launch(**launch_args)
         
-        context = await self.browser.new_context(viewport=DEFAULT_VIEWPORT)
-        self.page = await context.new_page()
+        # Use standard viewport
+        self.page = await self.browser.new_page()
         
         return self
     
@@ -81,129 +84,61 @@ class AnimationApplicator:
         """
         Apply flow animation to diagram edges.
         
-        This method:
-        1. Navigates to Draw.io and imports the diagram
-        2. Accesses the internal mxGraph instance
-        3. Applies flowAnimation=1 style to all edges
-        4. Refreshes the graph
-        
-        Args:
-            mermaid_code: Mermaid diagram code
-            animation_manifest: Optional animation configuration
-            
-        Raises:
-            AnimationError: If animation application fails
-            RenderingError: If diagram rendering fails
+        This method fully re-renders the diagram to ensure it has a handle
+        on the mxGraph instance, then applies the animation styles.
         """
         if not self.page:
             raise AnimationError("Browser not initialized")
         
         try:
-            # 1. Navigate to Draw.io
-            await self.page.goto(DRAWIO_EMBED_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
+            # --- PHASE 1: RE-RENDER (Identical to DrawIODriver) ---
+            logger.info("Initializing Draw.io for animation...")
+            await self.page.goto(DRAWIO_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
             
-            # 2. Wait for App
-            try:
-                await self.page.wait_for_function("typeof App !== 'undefined'", timeout=30000)
-            except PlaywrightTimeoutError:
-                raise RenderingError("Draw.io App object not initialized")
+            # Setup (Patching & Init)
+            await self.page.evaluate(PATCH_MXGRAPH_JS)
+            init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
+            if not init_success:
+                logger.warning("Draw.io 'init' message timed out")
             
-            # 3. Import Mermaid
-            import_result = await self.page.evaluate(
-                """
-                async (mermaidCode) => {
-                    try {
-                        App.importData(mermaidCode, true);
-                        return { success: true };
-                    } catch (error) {
-                        return { success: false, error: error.message };
-                    }
-                }
-                """,
-                mermaid_code,
-            )
+            # Configure & Load
+            await self.page.evaluate(SEND_CONFIGURE_JS)
+            await asyncio.sleep(0.5)
+            await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
             
-            if not import_result.get("success"):
-                raise RenderingError(f"Import failed: {import_result.get('error')}")
+            # Verify Render & Capture
+            logger.info("Waiting for graph to be captured...")
+            graph_captured = False
+            for _ in range(10):
+                status = await self.page.evaluate(CHECK_RENDER_JS)
+                if status.get("hasSvg") and status.get("hasCapturedGraph"):
+                    graph_captured = True
+                    break
+                await asyncio.sleep(0.5)
+                
+            if not graph_captured:
+                raise RenderingError("Failed to capture mxGraph instance for animation")
+                
+            # --- PHASE 2: APPLY ANIMATION ---
+            logger.info("Applying animation styles...")
+            result = await self.page.evaluate(APPLY_ANIMATION_JS)
             
-            # 4. Apply Animation via mxGraph API
-            # This is the core logic from REQUIREMENTS.md
-            animation_result = await self.page.evaluate(
-                """
-                () => {
-                    try {
-                        // Access the mxGraph instance
-                        // In embed mode with UI, it's usually at window.EditorUi.editor.graph
-                        // But we need to find the instance safely
-                        
-                        // We can look for the EditorUi instance
-                        // Usually accessible via the frames or the App object wrapper?
-                        // Actually, in the configured UI, App.mainUi usually holds the EditorUi
-                        
-                        let graph = null;
-                        if (App && App.mainUi && App.mainUi.editor) {
-                            graph = App.mainUi.editor.graph;
-                        }
-                        
-                        if (!graph) {
-                            return { success: false, error: "Cloud not find mxGraph instance" };
-                        }
-                        
-                        // Transaction for updates
-                        graph.getModel().beginUpdate();
-                        let edgeCount = 0;
-                        try {
-                            const parent = graph.getDefaultParent();
-                            const children = graph.getChildCells(parent);
-                            
-                            for (let i = 0; i < children.length; i++) {
-                                const cell = children[i];
-                                if (cell.isEdge()) {
-                                    // Set flowAnimation=1
-                                    // We need to preserve existing styles
-                                    let style = cell.getStyle();
-                                    if (!style.includes('flowAnimation=1')) {
-                                        if (style && style[style.length - 1] !== ';') style += ';';
-                                        style += 'flowAnimation=1;';
-                                        graph.getModel().setStyle(cell, style);
-                                        edgeCount++;
-                                    }
-                                }
-                            }
-                        } finally {
-                            graph.getModel().endUpdate();
-                        }
-                        
-                        // Force refresh
-                        graph.refresh();
-                        
-                        return { success: true, edgeCount: edgeCount };
-                    } catch (error) {
-                        return { success: false, error: error.message };
-                    }
-                }
-                """
-            )
+            if not result.get("success"):
+                raise AnimationError(f"Failed to apply animation: {result.get('error')}")
             
-            if not animation_result.get("success"):
-                # Warning only, don't fail hard if animation is tricky, but log it
-                # REQUIREMENTS say "Application Node... Idempotent execution"
-                # If it fails, we might want to know
-                raise AnimationError(f"Failed to apply animation: {animation_result.get('error')}")
-            
-            edge_count = animation_result.get("edgeCount", 0)
+            edge_count = result.get("edgeCount", 0)
             if edge_count == 0:
                 logger.warning("No edges found to animate")
             else:
                 logger.info(f"Applied animation to {edge_count} edges")
             
-            # Wait a bit to ensure stability
+            # Stabilize
             await asyncio.sleep(0.5)
             
         except Exception as e:
             if isinstance(e, (AnimationError, RenderingError)):
                 raise
-            raise AnimationError(f"Unexpected error: {str(e)}")
+            raise AnimationError(f"Unexpected error applying animation: {str(e)}")
 
 
 async def _apply_animation_async(state: GraphState) -> GraphState:
@@ -225,6 +160,8 @@ async def _apply_animation_async(state: GraphState) -> GraphState:
     except Exception as e:
         logger.error(state, e)
         state["errors"].append(f"Animation failed: {str(e)}")
+        # We don't necessarily fail the pipeline, as static diagram might still be valid
+        # But for verification we might want to know
         state["animation_applied"] = False
         raise
 

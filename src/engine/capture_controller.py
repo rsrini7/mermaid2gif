@@ -9,6 +9,7 @@ CRITICAL FEATURES:
 - Exact duration matching for seamless loops
 - High-quality video capture
 - Automatic cleanup of browser resources
+- Uses verified Draw.io postMessage workflow
 """
 
 import asyncio
@@ -21,9 +22,15 @@ from ..core.config import get_config
 from ..core.exceptions import CaptureError, RenderingError
 from ..core.state import GraphState
 from ..utils.logger import get_logger
-
-# Draw.io embed mode URL (MANDATORY)
-DRAWIO_EMBED_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1"
+from .drawio_utils import (
+    DRAWIO_URL,
+    PATCH_MXGRAPH_JS,
+    WAIT_FOR_INIT_JS,
+    SEND_CONFIGURE_JS,
+    SEND_LOAD_JS,
+    CHECK_RENDER_JS,
+    APPLY_ANIMATION_JS
+)
 
 # Fixed viewport for deterministic rendering
 DEFAULT_VIEWPORT = {"width": 1200, "height": 1200}
@@ -37,7 +44,7 @@ class CaptureController:
     
     This controller:
     1. Launches a browser with video recording enabled
-    2. Renders the diagram with animations
+    2. Renders the diagram with animations (replicating robust setup)
     3. Records for the exact animation duration
     4. Saves the video file
     """
@@ -149,98 +156,49 @@ class CaptureController:
         Capture the animated diagram as video.
         
         This method:
-        1. Navigates to Draw.io
-        2. Imports the Mermaid diagram
-        3. Applies flow animation
-        4. Waits for the exact animation duration
-        5. Video is automatically recorded by Playwright
-        
-        Args:
-            mermaid_code: Mermaid diagram code to render
-            duration: Animation duration in seconds
-            
-        Raises:
-            CaptureError: If capture fails
-            RenderingError: If diagram rendering fails
+        1. Fully re-renders the diagram using robust Draw.io flow
+        2. Applies flow animation
+        3. Waits for the exact animation duration
         """
         if not self.page:
             raise CaptureError("Browser not launched. Call launch() first.")
         
         try:
-            # 1. Navigate to Draw.io
-            await self.page.goto(DRAWIO_EMBED_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
+            # --- PHASE 1: RE-RENDER ---
+            logger.info("Initializing Draw.io for capture...")
+            await self.page.goto(DRAWIO_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
             
-            # 2. Wait for App
-            try:
-                await self.page.wait_for_function("typeof App !== 'undefined'", timeout=30000)
-            except PlaywrightTimeoutError:
-                raise RenderingError("Draw.io App object not initialized")
+            # Setup
+            await self.page.evaluate(PATCH_MXGRAPH_JS)
+            init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
+            if not init_success:
+                logger.warning("Draw.io 'init' message timed out")
             
-            # 3. Import Mermaid
-            import_result = await self.page.evaluate(
-                """
-                async (mermaidCode) => {
-                    try {
-                        App.importData(mermaidCode, true);
-                        return { success: true };
-                    } catch (error) {
-                        return { success: false, error: error.message };
-                    }
-                }
-                """,
-                mermaid_code,
-            )
+            # Configure & Load
+            await self.page.evaluate(SEND_CONFIGURE_JS)
+            await asyncio.sleep(0.5)
+            await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
             
-            if not import_result.get("success"):
-                raise RenderingError(f"Import failed: {import_result.get('error')}")
+            # Verify Render & Capture
+            logger.info("Waiting for graph capture...")
+            graph_captured = False
+            for _ in range(10):
+                status = await self.page.evaluate(CHECK_RENDER_JS)
+                if status.get("hasSvg") and status.get("hasCapturedGraph"):
+                    graph_captured = True
+                    break
+                await asyncio.sleep(0.5)
+                
+            if not graph_captured:
+                 raise RenderingError("Failed to capture mxGraph instance for animation capture")
+
+            # --- PHASE 2: APPLY ANIMATION ---
+            logger.info("Applying animation styles...")
+            result = await self.page.evaluate(APPLY_ANIMATION_JS)
+            if not result.get("success"):
+                 logger.warning(f"Animation warning: {result.get('error')}")
             
-            # 4. Apply Animation (mxGraph)
-            animation_result = await self.page.evaluate(
-                """
-                () => {
-                    try {
-                        let graph = null;
-                        if (App && App.mainUi && App.mainUi.editor) {
-                            graph = App.mainUi.editor.graph;
-                        }
-                        
-                        if (!graph) return { success: false, error: "Cloud not find mxGraph instance" };
-                        
-                        graph.getModel().beginUpdate();
-                        let edgeCount = 0;
-                        try {
-                            const parent = graph.getDefaultParent();
-                            const children = graph.getChildCells(parent);
-                            
-                            for (let i = 0; i < children.length; i++) {
-                                const cell = children[i];
-                                if (cell.isEdge()) {
-                                    let style = cell.getStyle();
-                                    if (!style.includes('flowAnimation=1')) {
-                                        if (style && style[style.length - 1] !== ';') style += ';';
-                                        style += 'flowAnimation=1;';
-                                        graph.getModel().setStyle(cell, style);
-                                        edgeCount++;
-                                    }
-                                }
-                            }
-                        } finally {
-                            graph.getModel().endUpdate();
-                        }
-                        
-                        graph.refresh();
-                        return { success: true, edgeCount: edgeCount };
-                    } catch (error) {
-                        return { success: false, error: error.message };
-                    }
-                }
-                """
-            )
-            
-            if not animation_result.get("success"):
-                logger.warning(f"Animation warning: {animation_result.get('error')}")
-            
-            # 5. Record for duration
+            # --- PHASE 3: RECORD ---
             # Wait for the exact animation duration to ensure full capture
             # Add a small buffer (0.5s) to ensure we capture the complete loop
             logger.info(f"Recording for {duration} seconds...")
@@ -255,12 +213,6 @@ class CaptureController:
 async def _capture_video_async(state: GraphState) -> GraphState:
     """
     Async implementation of video capture node.
-    
-    Args:
-        state: Current graph state
-        
-    Returns:
-        GraphState: Updated state with video_path
     """
     logger.start(state, {
         "diagram_rendered": state.get("diagram_rendered"),
@@ -269,6 +221,8 @@ async def _capture_video_async(state: GraphState) -> GraphState:
     
     try:
         # Validate prerequisites
+        # Note: animation_applied is set by previous node, but we re-apply it here visually
+        # to ensure it's recorded. The flag mainly confirms intent/config.
         if not state.get("diagram_rendered"):
             raise CaptureError("Diagram must be rendered before capture")
         
@@ -298,23 +252,16 @@ async def _capture_video_async(state: GraphState) -> GraphState:
         
         logger.end(state, {
             "video_path": str(video_path),
-            "duration": duration,
-            "size_mb": round(video_path.stat().st_size / 1024 / 1024, 2),
+            "size": state["artifacts"]["video_size_bytes"]
         })
-        
         return state
         
     except Exception as e:
         logger.error(state, e)
-        state["errors"].append(f"Video capture failed: {str(e)}")
+        state["errors"].append(f"Capture failed: {str(e)}")
         raise
 
 
 def capture_controller(state: GraphState) -> GraphState:
-    """
-    Synchronous wrapper for LangGraph compatibility.
-    
-    LangGraph requires synchronous node functions, so this wraps
-    the async implementation in asyncio.run().
-    """
+    """Synchronous wrapper for LangGraph."""
     return asyncio.run(_capture_video_async(state))
