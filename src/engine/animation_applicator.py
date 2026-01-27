@@ -1,6 +1,6 @@
 """
 Animation Applicator for Mermaid.js SVG
-Injects path-based animations into rendered Mermaid diagrams
+Injects path-based animations into rendered Mermaid diagrams with seamless looping
 """
 
 from playwright.async_api import async_playwright
@@ -43,13 +43,16 @@ async def _apply_animation_async(state: Dict[str, Any]) -> Dict[str, Any]:
     
     applicator = AnimationApplicator()
     try:
-        animated_html = await applicator.apply_animations(render_html)
+        # Get duration from state for seamless looping
+        duration = state.get("duration", 5.0)
+        animated_html = await applicator.apply_animations(render_html, duration)
         
         # Store in artifacts
         state["artifacts"]["animated_html"] = animated_html
         
         logger.info("Animation application completed", metadata={
-            "html_size": len(animated_html)
+            "html_size": len(animated_html),
+            "animation_duration": duration
         })
         
         return state
@@ -68,12 +71,13 @@ class AnimationApplicator:
         self.config = get_config()
         self.logger = get_logger("animation_applicator")
     
-    async def apply_animations(self, render_html: str) -> str:
+    async def apply_animations(self, render_html: str, duration: float = 5.0) -> str:
         """
-        Inject path-based animations into rendered HTML.
+        Inject path-based animations into rendered HTML with seamless looping.
         
         Args:
             render_html: HTML with rendered Mermaid SVG
+            duration: Animation duration in seconds (matches video duration for seamless loop)
             
         Returns:
             HTML with animations injected
@@ -91,10 +95,12 @@ class AnimationApplicator:
                 await page.set_content(render_html)
                 
                 # Inject JavaScript-based path animation for flowing arrows
-                self.logger.info("Injecting path-based animations")
+                self.logger.info("Injecting path-based animations", metadata={
+                    "duration_seconds": duration
+                })
                 
                 result = await page.evaluate("""
-                    () => {
+                    (duration) => {
                         // Find all edge paths
                         const edgePaths = document.querySelectorAll('.edgePath path, .flowchart-link');
                         
@@ -122,11 +128,11 @@ class AnimationApplicator:
                             `;
                             document.head.appendChild(styleSheet);
                             
-                            // Apply animation - flows from start to end of path
-                            path.style.animation = `${animationName} 3s linear infinite`;
+                            // Apply animation with duration matching video length for seamless loop
+                            path.style.animation = `${animationName} ${duration}s linear infinite`;
                         });
                         
-                        // Add subtle pulse to nodes
+                        // Add subtle pulse to nodes with matching duration
                         const pulseStyle = document.createElement('style');
                         pulseStyle.textContent = `
                             @keyframes nodePulse {
@@ -138,7 +144,7 @@ class AnimationApplicator:
                                 }
                             }
                             .node rect, .node circle, .node polygon {
-                                animation: nodePulse 4s ease-in-out infinite;
+                                animation: nodePulse ${duration * 1.5}s ease-in-out infinite;
                                 transform-origin: center;
                             }
                         `;
@@ -146,13 +152,15 @@ class AnimationApplicator:
                         
                         return { 
                             success: true, 
-                            pathsAnimated: edgePaths.length 
+                            pathsAnimated: edgePaths.length,
+                            animationDuration: duration
                         };
                     }
-                """)
+                """, duration)
                 
                 self.logger.info("Path animations injected successfully", metadata={
-                    "paths_animated": result.get("pathsAnimated", 0)
+                    "paths_animated": result.get("pathsAnimated", 0),
+                    "animation_duration": result.get("animationDuration", duration)
                 })
                 
                 # Get the updated HTML
