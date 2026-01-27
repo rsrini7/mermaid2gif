@@ -437,8 +437,6 @@ The API either:
 
 ---
 
-## Conclusion of Embed Mode Exploration
-
 **Draw.io's embed mode `postMessage` API is fundamentally non-functional for programmatic diagram loading in Playwright**.
 
 ---
@@ -469,56 +467,26 @@ With the Desktop CLI, you are limited to the flags they provide. You cannot inje
 
 ---
 
-### The Better Path: Fix Your CSS
+### The Better Path: Smart JavaScript Animation
 
-You are 99% there with the Mermaid Native approach. The "blinking" happened because the generated CSS likely animated `opacity` instead of `stroke-dashoffset`.
+We initially considered a pure CSS approach ("Marching Ants"), but it lacked precision for seamless looping across different path lengths.
 
-Here is the **Exact CSS Recipe** to turn that "blinking" into a smooth, directional "flow" for Mermaid diagrams.
+**We moved to a "Smart JS" approach which is now implemented.**
 
-**Update your `src/engine/animation_applicator.py` with this CSS:**
+#### Why CSS wasn't enough:
+Standard CSS `stroke-dasharray` is static. If you use a fixed pattern (e.g., "10px dash"), it won't align perfectly with the total length of every arrow. This causes a "jump" or "glitch" when the GIF loops.
 
-```python
-# The "Marching Ants" Flow Animation
-ANIMATION_CSS = """
-<style>
-    /* 1. Define the Keyframes: Moves the dash pattern along the line */
-    @keyframes flowAnimation {
-        from {
-            stroke-dashoffset: 20; /* Matches the pattern size (10+10) */
-        }
-        to {
-            stroke-dashoffset: 0;
-        }
-    }
+#### The Solution: Dynamic Path Calculation
+The current `animation_applicator.py` uses Playwright to inject JavaScript that:
 
-    /* 2. Target Mermaid Edge Paths */
-    /* Note: Different Mermaid renderers use different classes. 
-       These cover the most common Flowchart/Graph renderers. */
-    .edgePath .path, 
-    .flowchart-link, 
-    g.edgePaths > path { 
-        stroke: #333 !important;
-        stroke-width: 2px !important;
-        
-        /* The Magic Pattern: 10px solid, 10px gap */
-        stroke-dasharray: 10, 10 !important;
-        
-        /* Apply the animation: 1s duration, linear loop */
-        animation: flowAnimation 1s linear infinite !important;
-    }
-    
-    /* Optional: Ensure arrowheads don't get dashed */
-    .marker {
-        stroke-dasharray: none !important;
-    }
-</style>
-"""
-```
+1.  Finds every arrow path: `document.querySelectorAll('.edgePath path')`
+2.  Calculates exact length: `path.getTotalLength()`
+3.  Dynamically sets the dash pattern:
+    ```javascript
+    const dashLength = pathLength * 0.15; // 15% of total length
+    const gapLength = pathLength * 0.05;  // 5% of total length
+    ```
+4.  Creates a custom `@keyframe` for **each specific path**.
 
-### Why this works:
-
-1. **`stroke-dasharray: 10, 10`**: Breaks the solid line into segments (10px line, 10px gap).
-2. **`stroke-dashoffset`**: Shifts the starting point of those segments.
-3. **`@keyframes`**: Smoothly transitions the offset from 20 to 0. This creates the optical illusion that the dashes are moving forward.
-
-**Recommendation:** Stick with your current **Mermaid Native** engine. It is lighter, faster, and fully compliant with your CI constraints. Just refine the CSS string in your `animation_applicator.py`.
+**Verdict:**
+This approach guarantees **mathematically perfect loops** regardless of diagram complexity. The Draw.io CLI (and even standard Mermaid CSS) cannot do this. We have successfully implemented this superior custom engine.
