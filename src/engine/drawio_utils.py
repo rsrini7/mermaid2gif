@@ -102,27 +102,31 @@ APPLY_ANIMATION_JS = """
         const graph = window.capturedGraph;
         if (!graph) return { success: false, error: "Cloud not find mxGraph instance (window.capturedGraph is undefined)" };
         
-        graph.getModel().beginUpdate();
+        const model = graph.getModel();
+        const cells = model.cells;
+        
+        model.beginUpdate();
         let edgeCount = 0;
         try {
-            const parent = graph.getDefaultParent();
-            const children = graph.getChildCells(parent);
-            
-            for (let i = 0; i < children.length; i++) {
-                const cell = children[i];
-                if (cell.isEdge()) {
+            // Iterate over ALL cells in the model map
+            for (const id in cells) {
+                const cell = cells[id];
+                if (cell && cell.isEdge()) {
                     // Set flowAnimation=1
                     let style = cell.getStyle();
+                    // Ensure style string exists
+                    if (!style) style = "";
+                    
                     if (!style.includes('flowAnimation=1')) {
-                        if (style && style[style.length - 1] !== ';') style += ';';
+                        if (style.length > 0 && style[style.length - 1] !== ';') style += ';';
                         style += 'flowAnimation=1;';
-                        graph.getModel().setStyle(cell, style);
+                        model.setStyle(cell, style);
                         edgeCount++;
                     }
                 }
             }
         } finally {
-            graph.getModel().endUpdate();
+            model.endUpdate();
         }
         
         // Force refresh
