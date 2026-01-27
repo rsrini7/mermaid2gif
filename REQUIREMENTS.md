@@ -117,15 +117,14 @@ The system must:
    * LLMs → intent, correction, planning
    * Deterministic code → parsing, rendering, capture, encoding
 
-3. **Draw.io UI automation is forbidden**
+3. **Pure Mermaid Rendering**
 
-   * No DOM selectors
-   * No UI clicks
-   * No modal dialogs
+   * No external rendering services (like Draw.io)
+   * All rendering via local `mermaid.js` execution
 
 4. **Renderer volatility must be isolated**
 
-   * All draw.io interaction via JavaScript injection in embed mode
+   * All rendering happens in a controlled, invisible browser context
 
 5. **Looping correctness supersedes visual fidelity**
 
@@ -148,7 +147,7 @@ Mermaid Fix Agent ──┐
   ↓ (valid)         │
 Animation Planner   │
   ↓                 │
-Draw.io Renderer ←──┘
+Mermaid Renderer ←──┘
   ↓
 Animation Applicator
   ↓
@@ -171,7 +170,7 @@ Retries are **node-local and bounded**.
 | LLM Interface    | LiteLLM                           |
 | LLM Provider     | Groq, OpenRouter (Optional)       |
 | Mermaid Parsing  | `mermaid-parser-py`               |
-| Rendering Engine | draw.io (embed mode)              |
+| Rendering Engine | Native Mermaid.js (via Playwright)  |
 | Browser Control  | Playwright (Python, Chromium)     |
 | Media Processing | FFmpeg (`ffmpeg-python`)          |
 | Config           | Pydantic Settings                 |
@@ -183,32 +182,37 @@ Retries are **node-local and bounded**.
 
 ```text
 mermaid-gif/
-├── config/
-│   ├── llm_config.yaml
-│   └── animation_presets.json
 ├── src/
 │   ├── agents/
-│   │   ├── intent.py
-│   │   └── fixer.py
+│   │   ├── __init__.py
+│   │   ├── fixer.py
+│   │   └── intent.py
 │   ├── core/
-│   │   ├── state.py
-│   │   ├── graph.py
+│   │   ├── __init__.py
 │   │   ├── config.py
-│   │   └── exceptions.py
+│   │   ├── exceptions.py
+│   │   ├── graph.py
+│   │   └── state.py
 │   ├── engine/
-│   │   ├── mermaid_validator.py
-│   │   ├── drawio_driver.py
+│   │   ├── __init__.py
 │   │   ├── animation_applicator.py
 │   │   ├── capture_controller.py
-│   │   └── ffmpeg_processor.py
-│   └── utils/
-│       └── logger.py
+│   │   ├── ffmpeg_processor.py
+│   │   ├── mermaid_renderer.py
+│   │   ├── mermaid_validator.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── logger.py
+│   ├── __init__.py
+│   └── main.py
 ├── tests/
 │   ├── mocks/
-│   └── test_graph_smoke.py
+│   ├── __init__.py
+│   └── test_smoke.py
+├── .env.example
 ├── Dockerfile
 ├── pyproject.toml
-└── .env.example
+└── README.md
 ```
 
 ---
@@ -282,26 +286,20 @@ class GraphState(TypedDict):
 
 ---
 
-### 7.6 Draw.io Renderer Node (Critical)
+### 7.6 Mermaid Renderer Node (Critical)
 
 **Rendering Strategy**
 
-* Use draw.io **embed mode**
-* Mermaid is **not native draw.io XML**
-* Must call internal import logic via JS injection
-
-**Approved URL**
-
-```
-https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1
-```
+* Use **Playwright** with local HTML shell
+* Inject `mermaid.min.js` from CDN
+* Render to SVG via `mermaid.render()`
 
 **Rules**
 
-* Use `page.evaluate()`
-* Call internal APIs (e.g. `App.importData`)
-* No UI automation
-* Emit artifacts on failure
+* Use `page.set_content()`
+* Wait for `mermaid` object
+* Capture SVG output directly
+* No external service dependencies
 
 ---
 
@@ -373,9 +371,9 @@ https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1
 
 ## 11. Security Constraints
 
-* No authenticated draw.io sessions
+* No external service dependencies (except CDN)
 * No persistent browser state
-* No external network during rendering
+* No user sessions or logins
 * Strict secret handling via environment
 
 ---
@@ -406,7 +404,7 @@ The system is complete when:
 
 * ✅ Fully headless
 * ✅ Perfectly looping GIF
-* ✅ No draw.io UI interaction
+* ✅ No external rendering dependencies
 * ✅ Bounded retries enforced
 * ✅ Logs conform to schema
 * ✅ Same input → same output
