@@ -1,6 +1,6 @@
 """
 Mermaid.js Direct Renderer
-Replaces Draw.io integration with native Mermaid.js rendering
+Native Mermaid.js rendering module using Playwright
 """
 
 from playwright.async_api import async_playwright, Page, Browser

@@ -48,14 +48,7 @@ class RenderingError(MermaidGIFError):
     pass
 
 
-class DrawIOImportError(RenderingError):
-    """Raised when Draw.io fails to import Mermaid diagram."""
-    pass
 
-
-class DrawIOTimeoutError(RenderingError):
-    """Raised when Draw.io operations timeout."""
-    pass
 
 
 class AnimationApplicationError(RenderingError):

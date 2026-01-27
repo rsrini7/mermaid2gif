@@ -29,13 +29,13 @@ class TestMermaidGIFSmoke(unittest.TestCase):
     @patch('src.core.graph.render_diagram_node')
     @patch('src.agents.intent.get_config')
     @patch('src.agents.fixer.get_config')
-    @patch('src.engine.drawio_driver.get_config')
+    @patch('src.engine.mermaid_renderer.get_config')
     @patch('src.engine.ffmpeg_processor.get_config')
     @patch('src.engine.mermaid_validator.get_config')
     @patch('src.engine.animation_applicator.get_config')
     @patch('src.engine.capture_controller.get_config')
     @patch('src.engine.ffmpeg_processor.ffmpeg')
-    @patch('src.engine.drawio_driver.async_playwright')
+    @patch('src.engine.mermaid_renderer.async_playwright')
     @patch('src.agents.intent.litellm.completion')
     @patch('src.agents.fixer.litellm.completion')
     def test_end_to_end_success(
@@ -48,7 +48,7 @@ class TestMermaidGIFSmoke(unittest.TestCase):
         mock_animation_config,
         mock_validator_config,
         mock_ffmpeg_config,
-        mock_drawio_config,
+        mock_mermaid_config,
         mock_fixer_config,
         mock_intent_config,
         mock_render_diagram,
@@ -62,7 +62,7 @@ class TestMermaidGIFSmoke(unittest.TestCase):
         1. Input: "Create a flowchart of A -> B"
         2. Intent agent generates Mermaid code
         3. Validator passes (placeholder always passes)
-        4. Draw.io renders diagram
+        4. Mermaid renderer generates SVG
         5. Animation applied
         6. Video captured
         7. FFmpeg converts to GIF
@@ -86,7 +86,7 @@ class TestMermaidGIFSmoke(unittest.TestCase):
         # Apply mock config to all get_config calls
         mock_intent_config.return_value = mock_config
         mock_fixer_config.return_value = mock_config
-        mock_drawio_config.return_value = mock_config
+        mock_mermaid_config.return_value = mock_config
         mock_ffmpeg_config.return_value = mock_config
         mock_validator_config.return_value = mock_config
         mock_animation_config.return_value = mock_config

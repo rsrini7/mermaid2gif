@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from .state import GraphState
 from ..agents.intent import intent_agent, input_router
 from ..agents.fixer import mermaid_fix_agent
-from ..engine.drawio_driver import render_mermaid_node
+from ..engine.mermaid_renderer import render_mermaid_node
 from ..engine.ffmpeg_processor import transcode_to_gif_node
 from ..engine.mermaid_validator import mermaid_validator
 from ..engine.animation_applicator import apply_animation_node
@@ -141,7 +141,7 @@ def create_graph() -> StateGraph:
                               ├─> (retry < 2) ─> mermaid_validator
                               └─> (retry >= 2) ─> end_fail
     
-    animation_planner ─> drawio_renderer ─> animation_applicator
+    animation_planner ─> mermaid_renderer ─> animation_applicator
       ─> capture_controller ─> ffmpeg_transcoder ─> end_success
     ```
     
