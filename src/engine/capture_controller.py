@@ -126,14 +126,16 @@ class CaptureController:
                     "duration_seconds": duration
                 })
                 
-                # Record for specified duration
-                # The animation will loop automatically via CSS
-                await asyncio.sleep(duration)
+                # Record for slightly less than full duration to avoid capturing
+                # any blank frames when the animation loops or page closes
+                # This creates a seamless loop in the final GIF
+                record_duration = duration - 0.1  # 100ms buffer
+                await asyncio.sleep(record_duration)
                 
                 self.logger.info("Video recording complete")
                 
-                # Close page to finalize video
-                await page.close()
+                # IMPORTANT: Close context first to stop recording
+                # This prevents capturing blank frames when the page closes
                 await context.close()
                 
                 # Get the recorded video path
