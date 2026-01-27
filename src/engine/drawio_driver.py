@@ -1,15 +1,10 @@
 """
-Draw.io renderer using headless browser with JavaScript injection.
+Draw.io renderer REFACTORED to use local Mermaid.js renderer.
 
-This module drives the headless browser to render Mermaid diagrams using Draw.io's
-embed mode. It uses JavaScript injection via page.evaluate() to call internal APIs,
-avoiding all UI automation.
-
-CRITICAL CONSTRAINTS:
-- NO UI clicks or selectors
-- JavaScript injection only via page.evaluate()
-- Embed mode URL required
-- Headless execution only
+This module originally drove Draw.io's embed mode but has been refactored
+to use a local HTML file with mermaid.js for better reliability and speed.
+The class name `DrawIODriver` and node name `drawio_renderer` are retained
+for backward compatibility, but the implementation is now 100% local.
 """
 
 import asyncio
