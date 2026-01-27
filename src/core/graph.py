@@ -12,11 +12,11 @@ from langgraph.graph import StateGraph, END
 from .state import GraphState
 from ..agents.intent import intent_agent, input_router
 from ..agents.fixer import mermaid_fix_agent
-from ..engine.drawio_driver import render_diagram_node
+from ..engine.mermaid_renderer import render_mermaid_node
 from ..engine.ffmpeg_processor import transcode_to_gif_node
 from ..engine.mermaid_validator import mermaid_validator
-from ..engine.animation_applicator import animation_applicator
-from ..engine.capture_controller import capture_controller
+from ..engine.animation_applicator import apply_animation_node
+from ..engine.capture_controller import capture_video_node
 from ..utils.logger import get_logger, configure_logging
 
 logger = get_logger("graph")
@@ -141,7 +141,7 @@ def create_graph() -> StateGraph:
                               ├─> (retry < 2) ─> mermaid_validator
                               └─> (retry >= 2) ─> end_fail
     
-    animation_planner ─> drawio_renderer ─> animation_applicator
+    animation_planner ─> mermaid_renderer ─> animation_applicator
       ─> capture_controller ─> ffmpeg_transcoder ─> end_success
     ```
     
@@ -157,9 +157,9 @@ def create_graph() -> StateGraph:
     workflow.add_node("mermaid_validator", mermaid_validator)
     workflow.add_node("fix_mermaid", mermaid_fix_agent)
     workflow.add_node("animation_planner", animation_planner)
-    workflow.add_node("drawio_renderer", render_diagram_node)
-    workflow.add_node("animation_applicator", animation_applicator)
-    workflow.add_node("capture_controller", capture_controller)
+    workflow.add_node("mermaid_renderer", render_mermaid_node)
+    workflow.add_node("animation_applicator", apply_animation_node)
+    workflow.add_node("capture_controller", capture_video_node)
     workflow.add_node("ffmpeg_transcoder", transcode_to_gif_node)
     workflow.add_node("end_success", end_success)
     workflow.add_node("end_fail", end_fail)
@@ -201,9 +201,9 @@ def create_graph() -> StateGraph:
         }
     )
     
-    # Linear pipeline: animation_planner -> drawio_renderer -> animation_applicator
-    workflow.add_edge("animation_planner", "drawio_renderer")
-    workflow.add_edge("drawio_renderer", "animation_applicator")
+    # Linear pipeline: animation_planner -> mermaid_renderer -> animation_applicator
+    workflow.add_edge("animation_planner", "mermaid_renderer")
+    workflow.add_edge("mermaid_renderer", "animation_applicator")
     workflow.add_edge("animation_applicator", "capture_controller")
     workflow.add_edge("capture_controller", "ffmpeg_transcoder")
     workflow.add_edge("ffmpeg_transcoder", "end_success")
