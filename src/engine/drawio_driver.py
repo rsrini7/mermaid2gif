@@ -1,179 +1,178 @@
 """
-Draw.io driver for rendering Mermaid diagrams.
-
-This module controls a headless browser to interact with Draw.io's embed mode.
-It handles the critical task of converting Mermaid text into a rendered diagram
-by driving the web application directly.
-
-CRITICAL FEATURES:
-- Uses embed.diagrams.net (remote) per REQUIREMENTS.md
-- Protocol: 'proto=json' with postMessage workflow
-- Captures mxGraph instance for downstream animation
+Mermaid.js Direct Renderer
+Replaces Draw.io integration with native Mermaid.js rendering
 """
 
-import asyncio
-import json
-from typing import Dict, Any, Optional
-
-from playwright.async_api import Page, async_playwright, TimeoutError as PlaywrightTimeoutError
-
+from playwright.async_api import async_playwright, Page, Browser
 from ..core.config import get_config
-from ..core.exceptions import DrawIOImportError
-from ..core.state import GraphState
 from ..utils.logger import get_logger
-from .drawio_utils import (
-    DRAWIO_URL,
-    PATCH_MXGRAPH_JS,
-    WAIT_FOR_INIT_JS,
-    SEND_CONFIGURE_JS,
-    SEND_LOAD_JS,
-    CHECK_RENDER_JS,
-)
+from typing import Dict, Any
+import asyncio
+import nest_asyncio
 
-logger = get_logger("drawio_driver")
+# Allow nested event loops for LangGraph compatibility
+nest_asyncio.apply()
+
+logger = get_logger("mermaid_renderer")
 
 
-class DrawIODriver:
+def render_mermaid_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Driver for controlling Draw.io via Playwright.
+    Synchronous wrapper for async Mermaid rendering.
+    Required for LangGraph compatibility.
+    """
+    return asyncio.run(_render_mermaid_async(state))
+
+
+async def _render_mermaid_async(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Render Mermaid code to SVG using Mermaid.js library.
     
-    This class manages the browser page interaction to:
-    1. Load the Draw.io embed application
-    2. Inject Mermaid code via postMessage
-    3. Verify successful rendering
+    Args:
+        state: Graph state containing mermaid_code
+        
+    Returns:
+        Updated state with render_html artifact
     """
+    mermaid_code = state.get("mermaid_code", "")
     
-    def __init__(self, page: Page):
-        """
-        Initialize the driver.
-        
-        Args:
-            page: Playwright Page instance
-        """
-        self.page = page
-        self.config = get_config()
-
-    async def render_mermaid(self, mermaid_code: str) -> None:
-        """
-        Render Mermaid code in Draw.io.
-        
-        This method executes the complex initialization sequence:
-        1. Navigates to embed URL
-        2. Patches mxGraph to capture instance
-        3. Waits for init handshake
-        4. Sends configuration
-        5. Sends Mermaid code via 'load' action
-        
-        Args:
-            mermaid_code: The Mermaid diagram definition
-            
-        Raises:
-            DrawIOImportError: If rendering fails
-        """
-        try:
-            # 1. Navigate
-            logger.info(f"Navigating to {DRAWIO_URL}")
-            await self.page.goto(DRAWIO_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
-            
-            # 2. Setup (Patching & Init Listener)
-            # We patch BEFORE the graph is created to ensure we capture it
-            await self.page.evaluate(PATCH_MXGRAPH_JS)
-            
-            # 2. Setup (Patching)
-            # We patch BEFORE the graph is created to ensure we capture it
-            await self.page.evaluate(PATCH_MXGRAPH_JS)
-            
-            # 3. Wait for Init & Handshake
-            # The WAIT_FOR_INIT_JS script now handles the 'configure' heartbeat
-            logger.info("Waiting for Draw.io initialization & handshake...")
-            init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
-            
-            if not init_success:
-                logger.warning("Draw.io 'init' handshake timed out (15s). Proceeding optimistically...")
-            
-            # 4. Load Mermaid
-            logger.info("Sending Mermaid code...")
-            await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
-            
-            # 6. Verify Render
-            # Wait for SVG to appear and graph to be captured AND content to be present
-            logger.info("Waiting for render...")
-            for attempt in range(20): # 10 seconds max (increased from 5s)
-                status = await self.page.evaluate(CHECK_RENDER_JS)
-                if status.get("hasSvg") and status.get("hasCapturedGraph") and status.get("hasContent"):
-                    logger.info("Render verified and graph captured with content!")
-                    return
-                await asyncio.sleep(0.5)
-            
-            # If we get here, check one last time
-            status = await self.page.evaluate(CHECK_RENDER_JS)
-            if status.get("hasSvg"):
-                 logger.warning(f"Render warning: SVG found but content validation failed (Captured: {status.get('hasCapturedGraph')}, Content: {status.get('hasContent')})")
-                 # We might still return here if we want to risk it, but for now let's warn
-                 return
-
-            raise DrawIOImportError("Render validation failed: SVG not found in DOM or graph empty")
-
-        except Exception as e:
-            if isinstance(e, DrawIOImportError):
-                raise
-            raise DrawIOImportError(f"Failed to import Mermaid data: {str(e)}")
-
-
-async def _render_diagram_node_async(state: GraphState) -> GraphState:
-    """
-    Async wrapper for LangGraph.
+    if not mermaid_code:
+        raise ValueError("No mermaid_code found in state")
     
-    This node manages the browser lifecycle for the driver.
-    """
-    logger.start(state)
+    logger.info("Starting Mermaid.js rendering", metadata={
+        "code_length": len(mermaid_code),
+        "code_preview": mermaid_code[:100]
+    })
+    
+    renderer = MermaidRenderer()
     try:
-        mermaid_code = state.get("mermaid_code")
-        if not mermaid_code:
-            raise DrawIOImportError("No Mermaid code in state")
+        render_html = await renderer.render(mermaid_code)
+        
+        # Store in artifacts
+        if "artifacts" not in state:
+            state["artifacts"] = {}
+        state["artifacts"]["render_html"] = render_html
+        
+        logger.info("Mermaid rendering completed", metadata={
+            "html_size": len(render_html)
+        })
+        
+        return state
+        
+    except Exception as e:
+        logger.error(state, e, metadata={
+            "component": "mermaid_renderer"
+        })
+        raise
+
+
+class MermaidRenderer:
+    """Renders Mermaid diagrams to SVG using Playwright and Mermaid.js CDN"""
+    
+    def __init__(self):
+        self.config = get_config()
+        self.logger = get_logger("mermaid_renderer")
+    
+    async def render(self, mermaid_code: str) -> str:
+        """
+        Render Mermaid code to full HTML with embedded SVG.
+        
+        Args:
+            mermaid_code: Mermaid diagram syntax
             
-        # Launch browser just for this validation step
-        # CRITICAL: Add stealth args to bypass Draw.io headless detection
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
+        Returns:
+            Full HTML document with rendered SVG
+        """
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
                 headless=True,
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled",  # Critical for stealth
-                    "--disable-features=IsolateOrigins,site-per-process",
                 ]
             )
             
-            # Create context with realistic user agent and permissions
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
-                java_script_enabled=True,
-            )
-            
-            # Override navigator.webdriver to hide automation
-            page = await context.new_page()
-            await page.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-            """)
-            
-            driver = DrawIODriver(page)
-            await driver.render_mermaid(mermaid_code)
-            
-            await browser.close()
-            
-        state["diagram_rendered"] = True
-        logger.end(state, {"status": "success"})
-        return state
-    except Exception as e:
-        logger.error(state, e)
-        state["errors"].append(f"Rendering failed: {str(e)}")
-        raise
-
-def render_diagram_node(state: GraphState) -> GraphState:
-    """Synchronous wrapper for LangGraph."""
-    return asyncio.run(_render_diagram_node_async(state))
+            try:
+                page = await browser.new_page(
+                    viewport={"width": 1920, "height": 1080}
+                )
+                
+                # Create HTML shell with Mermaid.js
+                html_template = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: white;
+        }}
+        #diagram-container {{
+            max-width: 100%;
+        }}
+    </style>
+</head>
+<body>
+    <div id="diagram-container"></div>
+</body>
+</html>
+"""
+                
+                self.logger.info("Loading Mermaid.js library")
+                await page.set_content(html_template)
+                
+                # Wait for Mermaid.js to load
+                await page.wait_for_function("typeof mermaid !== 'undefined'")
+                
+                self.logger.info("Rendering Mermaid diagram")
+                
+                # Render Mermaid code to SVG
+                svg_result = await page.evaluate(f"""
+                    async (code) => {{
+                        try {{
+                            // Initialize Mermaid with configuration
+                            mermaid.initialize({{
+                                startOnLoad: false,
+                                theme: 'default',
+                                securityLevel: 'loose',
+                                flowchart: {{
+                                    useMaxWidth: true,
+                                    htmlLabels: true
+                                }}
+                            }});
+                            
+                            // Render the diagram
+                            const {{ svg }} = await mermaid.render('mermaid-diagram', code);
+                            
+                            // Insert into container
+                            document.getElementById('diagram-container').innerHTML = svg;
+                            
+                            return {{ success: true, svg: svg }};
+                        }} catch (error) {{
+                            return {{ success: false, error: error.toString() }};
+                        }}
+                    }}
+                """, mermaid_code)
+                
+                if not svg_result.get("success"):
+                    error_msg = svg_result.get("error", "Unknown error")
+                    raise RuntimeError(f"Mermaid rendering failed: {error_msg}")
+                
+                self.logger.info("Mermaid diagram rendered successfully")
+                
+                # Get the full HTML with rendered SVG
+                full_html = await page.content()
+                
+                return full_html
+                
+            finally:
+                await browser.close()

@@ -1,194 +1,167 @@
 """
-Animation applicator using JavaScript injection to apply flow animations.
-
-This module injects JavaScript into the Draw.io page to apply the "Flow Animation"
-style to diagram edges, creating the animated effect.
-
-CRITICAL FEATURES:
-- JavaScript injection only (NO UI automation)
-- Access to internal mxGraph API via captured instance
-- Style application to edges
-- Graph refresh for immediate effect
+Animation Applicator for Mermaid.js SVG
+Injects CSS animations into rendered Mermaid diagrams
 """
 
-import asyncio
-from typing import Optional, Dict, Any
-
-from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeoutError
-
+from playwright.async_api import async_playwright
 from ..core.config import get_config
-from ..core.exceptions import AnimationError, RenderingError
-from ..core.state import GraphState
 from ..utils.logger import get_logger
-from .drawio_utils import (
-    DRAWIO_URL,
-    PATCH_MXGRAPH_JS,
-    WAIT_FOR_INIT_JS,
-    SEND_CONFIGURE_JS,
-    SEND_LOAD_JS,
-    CHECK_RENDER_JS,
-    APPLY_ANIMATION_JS
-)
+from typing import Dict, Any
+import asyncio
+import nest_asyncio
+
+# Allow nested event loops for LangGraph compatibility
+nest_asyncio.apply()
 
 logger = get_logger("animation_applicator")
 
 
-class AnimationApplicator:
+def apply_animation_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Animation applicator using JavaScript injection.
-    
-    This applicator:
-    1. Replicates the Draw.io renderings state
-    2. Accesses the internal mxGraph instance via capture
-    3. Applies flow animation styles to edges
+    Synchronous wrapper for async animation application.
+    Required for LangGraph compatibility.
     """
-    
-    def __init__(self):
-        """Initialize the animation applicator."""
-        self.config = get_config()
-        self.browser: Optional[Browser] = None
-        self.page: Optional[Page] = None
-        self.playwright = None
-    
-    async def __aenter__(self):
-        """Async context manager entry."""
-        self.playwright = await async_playwright().start()
-        
-        launch_args = {
-            "headless": True,
-            "args": [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-            ],
-        }
-        
-        if self.config.chromium_executable_path:
-            launch_args["executable_path"] = str(self.config.chromium_executable_path)
-            
-        self.browser = await self.playwright.chromium.launch(**launch_args)
-        
-        # Create context with stealth configuration
-        context = await self.browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1920, "height": 1080},
-            java_script_enabled=True,
-        )
-        
-        self.page = await context.new_page()
-        await self.page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """)
-        
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
-    
-    async def apply_flow_animation(
-        self,
-        mermaid_code: str,
-        animation_manifest: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Apply flow animation to diagram edges.
-        
-        This method fully re-renders the diagram to ensure it has a handle
-        on the mxGraph instance, then applies the animation styles.
-        """
-        if not self.page:
-            raise AnimationError("Browser not initialized")
-        
-        try:
-            # --- PHASE 1: RE-RENDER (Identical to DrawIODriver) ---
-            logger.info("Initializing Draw.io for animation...")
-            await self.page.goto(DRAWIO_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
-            
-            # Setup (Patching)
-            await self.page.evaluate(PATCH_MXGRAPH_JS)
-            
-            # Init & Heartbeat Handshake
-            logger.info("Waiting for Draw.io initialization & handshake...")
-            init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
-            if not init_success:
-                logger.warning("Draw.io 'init' handshake timed out")
-            
-            # Configure & Load (Configure already sent by heartbeat)
-            logger.info("Sending Mermaid code...")
-            await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
-            
-            # Verify Render & Capture
-            logger.info("Waiting for graph to be captured...")
-            graph_captured = False
-            for _ in range(20): # 10s timeout
-                status = await self.page.evaluate(CHECK_RENDER_JS)
-                if status.get("hasSvg") and status.get("hasCapturedGraph") and status.get("hasContent"):
-                    graph_captured = True
-                    break
-                await asyncio.sleep(0.5)
-            
-            if not graph_captured:
-                # Log detailed status for debugging
-                logger.warning(f"Graph capture warning: {status}")
-                if not status.get("hasContent"):
-                     raise RenderingError("Render failed: Graph is empty (no cells found)")
-                raise RenderingError("Failed to capture mxGraph instance for animation")
-                
-            # --- PHASE 2: APPLY ANIMATION ---
-            logger.info("Applying animation styles...")
-            result = await self.page.evaluate(APPLY_ANIMATION_JS)
-            
-            if not result.get("success"):
-                raise AnimationError(f"Failed to apply animation: {result.get('error')}")
-            
-            edge_count = result.get("edgeCount", 0)
-            if edge_count == 0:
-                logger.warning("No edges found to animate")
-            else:
-                logger.info(f"Applied animation to {edge_count} edges")
-            
-            # Stabilize
-            await asyncio.sleep(0.5)
-            
-        except Exception as e:
-            if isinstance(e, (AnimationError, RenderingError)):
-                raise
-            raise AnimationError(f"Unexpected error applying animation: {str(e)}")
+    return asyncio.run(_apply_animation_async(state))
 
 
-async def _apply_animation_async(state: GraphState) -> GraphState:
-    """Async implementation of animation application node."""
-    logger.start(state)
+async def _apply_animation_async(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Apply CSS animations to rendered Mermaid SVG.
     
+    Args:
+        state: Graph state containing render_html artifact
+        
+    Returns:
+        Updated state with animated_html artifact
+    """
+    render_html = state.get("artifacts", {}).get("render_html")
+    
+    if not render_html:
+        raise ValueError("No render_html found in state artifacts")
+    
+    logger.info("Starting animation application")
+    
+    applicator = AnimationApplicator()
     try:
-        mermaid_code = state.get("mermaid_code")
-        if not mermaid_code:
-            raise AnimationError("No Mermaid code in state")
-            
-        async with AnimationApplicator() as applicator:
-            await applicator.apply_flow_animation(mermaid_code, state.get("animation_manifest"))
-            
-        state["animation_applied"] = True
-        logger.end(state, {"status": "success"})
+        animated_html = await applicator.apply_animations(render_html)
+        
+        # Store in artifacts
+        state["artifacts"]["animated_html"] = animated_html
+        
+        logger.info("Animation application completed", metadata={
+            "html_size": len(animated_html)
+        })
+        
         return state
         
     except Exception as e:
-        logger.error(state, e)
-        state["errors"].append(f"Animation failed: {str(e)}")
-        # We don't necessarily fail the pipeline, as static diagram might still be valid
-        # But for verification we might want to know
-        state["animation_applied"] = False
+        logger.error(state, e, metadata={
+            "component": "animation_applicator"
+        })
         raise
 
 
-def animation_applicator(state: GraphState) -> GraphState:
-    """Synchronous wrapper for LangGraph."""
-    return asyncio.run(_apply_animation_async(state))
+class AnimationApplicator:
+    """Applies CSS animations to Mermaid SVG diagrams"""
+    
+    def __init__(self):
+        self.config = get_config()
+        self.logger = get_logger("animation_applicator")
+    
+    async def apply_animations(self, render_html: str) -> str:
+        """
+        Inject CSS animations into rendered HTML.
+        
+        Args:
+            render_html: HTML with rendered Mermaid SVG
+            
+        Returns:
+            HTML with CSS animations injected
+        """
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox"]
+            )
+            
+            try:
+                page = await browser.new_page()
+                
+                self.logger.info("Loading rendered HTML")
+                await page.set_content(render_html)
+                
+                # Inject CSS animation styles
+                self.logger.info("Injecting CSS animations")
+                
+                animation_css = """
+                <style id="mermaid-animations">
+                    /* Animate edge paths with flowing dashed lines */
+                    .edgePath .path,
+                    .flowchart-link {
+                        stroke-dasharray: 10, 5;
+                        animation: flow 2s linear infinite;
+                    }
+                    
+                    /* Keyframe animation for flowing effect */
+                    @keyframes flow {
+                        from {
+                            stroke-dashoffset: 20;
+                        }
+                        to {
+                            stroke-dashoffset: 0;
+                        }
+                    }
+                    
+                    /* Optional: Pulse animation for nodes */
+                    .node rect,
+                    .node circle,
+                    .node polygon {
+                        animation: pulse 2s ease-in-out infinite;
+                    }
+                    
+                    @keyframes pulse {
+                        0%, 100% {
+                            opacity: 1;
+                        }
+                        50% {
+                            opacity: 0.8;
+                        }
+                    }
+                </style>
+                """
+                
+                await page.evaluate(f"""
+                    (css) => {{
+                        // Find the SVG element
+                        const svg = document.querySelector('svg');
+                        if (!svg) {{
+                            throw new Error('No SVG found in document');
+                        }}
+                        
+                        // Create style element
+                        const styleElement = document.createElement('style');
+                        styleElement.id = 'mermaid-animations';
+                        styleElement.textContent = css;
+                        
+                        // Insert into SVG or head
+                        if (svg.querySelector('defs')) {{
+                            svg.querySelector('defs').appendChild(styleElement);
+                        }} else {{
+                            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                            defs.appendChild(styleElement);
+                            svg.insertBefore(defs, svg.firstChild);
+                        }}
+                        
+                        return {{ success: true }};
+                    }}
+                """, animation_css)
+                
+                self.logger.info("CSS animations injected successfully")
+                
+                # Get the updated HTML
+                animated_html = await page.content()
+                
+                return animated_html
+                
+            finally:
+                await browser.close()
