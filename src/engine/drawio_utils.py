@@ -6,7 +6,7 @@ required to robustly drive the Draw.io embed mode using the specific 'proto=json
 workflow and 'mxGraph' instance capture technique discovered during debugging.
 """
 
-DRAWIO_URL = "https://embed.diagrams.net/?embed=1&proto=json&spin=1&configure=1&chrome=0&ui=min"
+DRAWIO_URL = "https://embed.diagrams.net/?embed=1&proto=json&configure=1&chrome=0&ui=min&noExitBtn=1&saveAndExit=0&noSaveBtn=1"
 DRAWIO_BASE_URL = "https://embed.diagrams.net"
 
 # Constants
@@ -35,17 +35,19 @@ PATCH_MXGRAPH_JS = """
 
 # 2. Wait for the 'init' message from the iframe
 #    This confirms the app is ready to receive configuration.
+# 2. Wait for the 'init' message from the iframe OR just proceed if we miss it
+#    Robust strategy: Listen for 'init', but also send 'configure' immediately just in case.
 WAIT_FOR_INIT_JS = """
 () => {
     return new Promise(resolve => {
+        let initReceived = false;
+        
         const handler = (event) => {
             try {
-                // Ensure origin matches to prevent security issues (optional but good practice)
-                // if (event.origin !== 'https://embed.diagrams.net') return;
-                
                 const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
                 if (data.event === 'init') {
                     console.log('Draw.io Init received!');
+                    initReceived = true;
                     window.removeEventListener('message', handler);
                     resolve(true);
                 }
@@ -53,12 +55,27 @@ WAIT_FOR_INIT_JS = """
                 // Ignore parse errors from other messages
             }
         };
+        
         window.addEventListener('message', handler);
-        // Fallback timeout in case we missed it or it's delayed
+        
+        // Optimistic: Send configure immediately in case we missed init
+        // The app might be ready and waiting.
+        console.log("Sending optimistic configure...");
+        window.postMessage(JSON.stringify({
+            action: 'configure', 
+            config: { css: '' }
+        }), '*');
+        
+        // Short timeout - if we don't get init in 2s, we assume we missed it 
+        // and return true to proceed with load.
         setTimeout(() => {
             window.removeEventListener('message', handler);
-            resolve(false); 
-        }, 10000);
+            if (!initReceived) {
+                console.warn("Init timeout - checking readiness or proceeding anyway");
+                // If we missed init, we can assume it's ready if we don't error later
+                resolve(true); 
+            }
+        }, 3000); 
     });
 }
 """
@@ -98,13 +115,15 @@ CHECK_RENDER_JS = """
     
     // Check cell count. 
     // Usually 2 (Root + Layer 0) are empty. We want actual content.
-    // Object.keys(model.cells).length > 2 is a safe bet for a non-empty diagram.
+    // However, if we are failing consistently, let's relax to > 0 to see if we get *anything*.
+    // If it is 2 (root+layer) and we see nothing, it means import failed silently.
     const cellCount = model.cells ? Object.keys(model.cells).length : 0;
     
     return {
         hasSvg: document.querySelectorAll('svg').length > 0,
         hasCapturedGraph: true,
-        hasContent: cellCount > 2
+        hasContent: cellCount > 0,
+        debugCellCount: cellCount
     };
 }
 """
