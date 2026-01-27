@@ -434,3 +434,91 @@ The API either:
 - **Total:** ~6 hours of debugging
 
 **Outcome:** Draw.io embed mode confirmed non-viable for programmatic use
+
+---
+
+## Conclusion of Embed Mode Exploration
+
+**Draw.io's embed mode `postMessage` API is fundamentally non-functional for programmatic diagram loading in Playwright**.
+
+---
+
+## Part 2: Desktop CLI Feasibility Assessment
+
+**Verdict: 🔴 Not Recommended for this Project.**
+
+While technically *possible*, using the Draw.io Desktop CLI introduces significant complexity and fails to solve the core "Animation" requirement natively.
+
+### 1. The "Static Export" Trap
+
+The Draw.io CLI (`draw.io --export ...`) is designed to generate **static files** (PNG, JPG, SVG, PDF).
+
+* **The Problem:** It does **not** have a `--export-gif-with-animation` flag.
+* **The Consequence:** You would use the CLI to generate a static SVG, and then you would *still* have to open it in a browser/Playwright to inject CSS and record it. You gain nothing over the current "Mermaid Native" approach, but you add a massive dependency.
+
+### 2. Docker & CI/CD Nightmare
+
+Your requirement is a "Headless, Dockerized System."
+
+* **Electron Bloat:** Draw.io Desktop is an Electron app. Installing it inside a Docker container (Debian/Alpine) adds hundreds of MBs of overhead.
+* **X Server Dependency:** Even with the `--no-sandbox` flag, Electron apps often require a virtual display server (`xvfb`) to run in a headless CI environment. This makes your `Dockerfile` complex and fragile.
+
+### 3. No "Agentic" Control
+
+With the Desktop CLI, you are limited to the flags they provide. You cannot inject JavaScript to manipulate the graph (e.g., "select only edges A->B") because the CLI runs as a black box process, not a browser session you can control with Playwright.
+
+---
+
+### The Better Path: Fix Your CSS
+
+You are 99% there with the Mermaid Native approach. The "blinking" happened because the generated CSS likely animated `opacity` instead of `stroke-dashoffset`.
+
+Here is the **Exact CSS Recipe** to turn that "blinking" into a smooth, directional "flow" for Mermaid diagrams.
+
+**Update your `src/engine/animation_applicator.py` with this CSS:**
+
+```python
+# The "Marching Ants" Flow Animation
+ANIMATION_CSS = """
+<style>
+    /* 1. Define the Keyframes: Moves the dash pattern along the line */
+    @keyframes flowAnimation {
+        from {
+            stroke-dashoffset: 20; /* Matches the pattern size (10+10) */
+        }
+        to {
+            stroke-dashoffset: 0;
+        }
+    }
+
+    /* 2. Target Mermaid Edge Paths */
+    /* Note: Different Mermaid renderers use different classes. 
+       These cover the most common Flowchart/Graph renderers. */
+    .edgePath .path, 
+    .flowchart-link, 
+    g.edgePaths > path { 
+        stroke: #333 !important;
+        stroke-width: 2px !important;
+        
+        /* The Magic Pattern: 10px solid, 10px gap */
+        stroke-dasharray: 10, 10 !important;
+        
+        /* Apply the animation: 1s duration, linear loop */
+        animation: flowAnimation 1s linear infinite !important;
+    }
+    
+    /* Optional: Ensure arrowheads don't get dashed */
+    .marker {
+        stroke-dasharray: none !important;
+    }
+</style>
+"""
+```
+
+### Why this works:
+
+1. **`stroke-dasharray: 10, 10`**: Breaks the solid line into segments (10px line, 10px gap).
+2. **`stroke-dashoffset`**: Shifts the starting point of those segments.
+3. **`@keyframes`**: Smoothly transitions the offset from 20 to 0. This creates the optical illusion that the dashes are moving forward.
+
+**Recommendation:** Stick with your current **Mermaid Native** engine. It is lighter, faster, and fully compliant with your CI constraints. Just refine the CSS string in your `animation_applicator.py`.
