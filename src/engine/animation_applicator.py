@@ -170,23 +170,28 @@ class AnimationApplicator:
                         const style = document.createElement('style');
                         style.textContent = `
                             @keyframes flowAnimation {
-                                0% { stroke-dashoffset: 100; }
+                                0% { stroke-dashoffset: var(--path-length); }
                                 100% { stroke-dashoffset: 0; }
                             }
                             svg path.flowable {
-                                stroke-dasharray: 10;
+                                stroke-dasharray: var(--path-length);
                                 animation: flowAnimation 2s linear infinite;
                             }
                         `;
                         document.head.appendChild(style);
                         
-                        // Add flowable class to all paths (edges)
+                        // Add flowable class to all paths (edges) and set their length
                         const paths = document.querySelectorAll('svg path');
                         let edgeCount = 0;
                         paths.forEach(path => {
                             // Only animate paths that look like edges (have stroke)
                             const stroke = window.getComputedStyle(path).stroke;
                             if (stroke && stroke !== 'none' && stroke !== 'rgb(0, 0, 0)') {
+                                // Calculate path length for smooth animation
+                                const pathLength = path.getTotalLength();
+                                path.style.setProperty('--path-length', pathLength);
+                                path.style.strokeDasharray = pathLength;
+                                path.style.strokeDashoffset = pathLength;
                                 path.classList.add('flowable');
                                 edgeCount++;
                             }

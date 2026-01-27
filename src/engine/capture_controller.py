@@ -208,11 +208,11 @@ class CaptureController:
                     const style = document.createElement('style');
                     style.textContent = `
                         @keyframes flowAnimation {
-                            0% { stroke-dashoffset: 100; }
+                            0% { stroke-dashoffset: var(--path-length); }
                             100% { stroke-dashoffset: 0; }
                         }
                         svg path.flowable {
-                            stroke-dasharray: 10;
+                            stroke-dasharray: var(--path-length);
                             animation: flowAnimation 2s linear infinite;
                         }
                     `;
@@ -222,6 +222,10 @@ class CaptureController:
                     paths.forEach(path => {
                         const stroke = window.getComputedStyle(path).stroke;
                         if (stroke && stroke !== 'none' && stroke !== 'rgb(0, 0, 0)') {
+                            const pathLength = path.getTotalLength();
+                            path.style.setProperty('--path-length', pathLength);
+                            path.style.strokeDasharray = pathLength;
+                            path.style.strokeDashoffset = pathLength;
                             path.classList.add('flowable');
                         }
                     });
