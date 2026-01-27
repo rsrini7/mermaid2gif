@@ -36,7 +36,7 @@ graph TD
 ## Technology Stack
 
 - **Orchestration:** LangGraph
-- **LLM Interface:** LiteLLM (OpenRouter)
+- **LLM Interface:** LiteLLM (Groq / OpenRouter)
 - **Rendering:** Native Mermaid.js (via Playwright)
 - **Animation:** JavaScript Path-Based Calculation
 - **Browser Control:** Playwright (Chromium)
@@ -67,7 +67,7 @@ playwright install chromium
 3. Configure environment:
 ```bash
 cp .env.example .env
-# Edit .env and add your OPENROUTER_API_KEY
+# Edit .env and add either GROQ_API_KEY (Recommended) or OPENROUTER_API_KEY
 ```
 
 ## Usage
@@ -88,19 +88,27 @@ python -m src.main "graph TD; A[Start] --> B{Check}; B -->|Yes| C[OK];"
 
 ## Configuration
 
-All configuration is managed through environment variables or `.env` file:
+All configuration is managed through environment variables or `.env` file.
 
-### Required
-- `OPENROUTER_API_KEY`: OpenRouter API key
+### Credentials (At least one required)
 
-### Optional
-- `LITELLM_MODEL`: LLM model identifier (default: `openrouter/anthropic/claude-3.5-sonnet`)
-- `DEFAULT_ANIMATION_DURATION`: Animation duration in seconds (default: 5.0)
-- `VIEWPORT_WIDTH`: Browser viewport width (default: 1280)
-- `LOG_LEVEL`: Logging level (default: INFO)
+-   `GROQ_API_KEY`: Groq API Key (Recommended for speed/cost). Must start with `gsk_`.
+-   `OPENROUTER_API_KEY`: OpenRouter API Key. Must start with `sk-or-`.
+
+### Optional Configuration
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `LITELLM_MODEL` | `groq/llama-3.3-70b-versatile` | LLM model via LiteLLM |
+| `DEFAULT_ANIMATION_DURATION` | `5.0` | Animation duration in seconds |
+| `DEFAULT_FPS` | `30` | Frame rate for GIF output |
+| `VIEWPORT_WIDTH` | `1920` | Browser viewport width |
+| `VIEWPORT_HEIGHT` | `1080` | Browser viewport height |
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
 ## Project Structure
 
+```text
 mermaid-gif/
 ├── src/
 │   ├── agents/
@@ -119,7 +127,7 @@ mermaid-gif/
 │   │   ├── capture_controller.py   # Playwright video capture
 │   │   ├── ffmpeg_processor.py     # FFmpeg transcoding & optimization
 │   │   ├── mermaid_renderer.py     # Native Mermaid.js rendering
-│   │   └── mermaid_validator.py    # Syntax validation
+│   │   ├── mermaid_validator.py    # Syntax validation
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   └── logger.py           # Structured logging
@@ -134,6 +142,7 @@ mermaid-gif/
 ├── pyproject.toml
 ├── README.md
 └── REQUIREMENTS.md
+```
 
 ## Critical Constraints & Design
 
