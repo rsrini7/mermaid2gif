@@ -98,17 +98,15 @@ class AnimationApplicator:
                     /* Animate edge paths with flowing dashed lines */
                     .edgePath .path,
                     .flowchart-link {
-                        stroke-dasharray: 10, 5;
-                        animation: flow 2s linear infinite;
+                        stroke-dasharray: 8 4;
+                        animation: flow 3s linear infinite;
                     }
                     
                     /* Keyframe animation for flowing effect */
                     @keyframes flow {
-                        from {
-                            stroke-dashoffset: 20;
+                        0% { stroke-dashoffset: 0;
                         }
-                        to {
-                            stroke-dashoffset: 0;
+                        100% { stroke-dashoffset: -12;
                         }
                     }
                     
@@ -116,15 +114,15 @@ class AnimationApplicator:
                     .node rect,
                     .node circle,
                     .node polygon {
-                        animation: pulse 2s ease-in-out infinite;
+                        animation: pulse 4s ease-in-out infinite;
                     }
                     
                     @keyframes pulse {
                         0%, 100% {
-                            opacity: 1;
+                            opacity: 1; transform: scale(1);
                         }
                         50% {
-                            opacity: 0.8;
+                            opacity: 0.95; transform: scale(1.02);
                         }
                     }
                 </style>
@@ -165,3 +163,4 @@ class AnimationApplicator:
                 
             finally:
                 await browser.close()
+
