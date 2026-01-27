@@ -12,10 +12,9 @@ CRITICAL FEATURES:
 """
 
 import asyncio
-from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
-from playwright.async_api import async_playwright, Browser, Page
+from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeoutError
 
 from ..core.config import get_config
 from ..core.exceptions import AnimationError, RenderingError
@@ -27,9 +26,6 @@ DRAWIO_EMBED_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configu
 
 # Fixed viewport for deterministic rendering
 DEFAULT_VIEWPORT = {"width": 1200, "height": 1200}
-
-# Selectors
-DIAGRAM_CONTAINER_SELECTOR = ".geDiagramContainer"
 
 logger = get_logger("animation_applicator")
 
@@ -49,57 +45,33 @@ class AnimationApplicator:
         self.config = get_config()
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
+        self.playwright = None
     
     async def __aenter__(self):
         """Async context manager entry."""
-        await self.launch()
+        self.playwright = await async_playwright().start()
+        
+        launch_args = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        }
+        
+        if self.config.chromium_path:
+            launch_args["executable_path"] = self.config.chromium_path
+            
+        self.browser = await self.playwright.chromium.launch(**launch_args)
+        
+        context = await self.browser.new_context(viewport=DEFAULT_VIEWPORT)
+        self.page = await context.new_page()
+        
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        await self.close()
-    
-    async def launch(self) -> None:
-        """
-        Launch the headless browser.
-        
-        Raises:
-            AnimationError: If browser launch fails
-        """
-        try:
-            playwright = await async_playwright().start()
-            
-            # Launch Chromium
-            launch_options = {
-                "headless": True,
-                "args": [
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-gpu",
-                ],
-            }
-            
-            # Use custom Chromium path if specified
-            if self.config.chromium_executable_path:
-                launch_options["executable_path"] = str(self.config.chromium_executable_path)
-            
-            self.browser = await playwright.chromium.launch(**launch_options)
-            
-            # Create page with fixed viewport
-            self.page = await self.browser.new_page(viewport=DEFAULT_VIEWPORT)
-            self.page.set_default_timeout(self.config.browser_timeout_ms)
-            
-        except Exception as e:
-            raise AnimationError(f"Failed to launch browser: {e}")
-    
-    async def close(self) -> None:
-        """Close the browser."""
-        if self.page:
-            await self.page.close()
         if self.browser:
             await self.browser.close()
+        if self.playwright:
+            await self.playwright.stop()
     
     async def apply_flow_animation(
         self,
@@ -124,78 +96,86 @@ class AnimationApplicator:
             RenderingError: If diagram rendering fails
         """
         if not self.page:
-            raise AnimationError("Browser not launched. Call launch() first.")
+            raise AnimationError("Browser not initialized")
         
         try:
-            # Get path to local mermaid renderer HTML
-            from pathlib import Path
-            renderer_path = Path(__file__).parent / "mermaid_renderer.html"
-            renderer_url = f"file:///{renderer_path.as_posix()}"
+            # 1. Navigate to Draw.io
+            await self.page.goto(DRAWIO_EMBED_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
             
-            # Navigate to local HTML renderer
-            await self.page.goto(renderer_url, wait_until="networkidle")
+            # 2. Wait for App
+            try:
+                await self.page.wait_for_function("typeof App !== 'undefined'", timeout=30000)
+            except PlaywrightTimeoutError:
+                raise RenderingError("Draw.io App object not initialized")
             
-            # Wait for mermaid.js to be ready
-            await self.page.wait_for_function(
-                "typeof window.mermaidReady !== 'undefined' && window.mermaidReady === true",
-                timeout=self.config.browser_timeout_ms,
-            )
-            
-            # Render the Mermaid diagram
-            render_result = await self.page.evaluate(
+            # 3. Import Mermaid
+            import_result = await self.page.evaluate(
                 """
                 async (mermaidCode) => {
-                    return await window.renderMermaid(mermaidCode);
+                    try {
+                        App.importData(mermaidCode, true);
+                        return { success: true };
+                    } catch (error) {
+                        return { success: false, error: error.message };
+                    }
                 }
                 """,
                 mermaid_code,
             )
             
-            if not render_result.get("success"):
-                error_msg = render_result.get("error", "Unknown error")
-                raise RenderingError(f"Failed to render diagram: {error_msg}")
+            if not import_result.get("success"):
+                raise RenderingError(f"Import failed: {import_result.get('error')}")
             
-            # Wait for SVG to appear
-            await self.page.wait_for_selector(
-                "svg",
-                timeout=self.config.browser_timeout_ms,
-            )
-            
-            # Apply CSS animation to edges (paths in SVG)
+            # 4. Apply Animation via mxGraph API
+            # This is the core logic from REQUIREMENTS.md
             animation_result = await self.page.evaluate(
                 """
                 () => {
                     try {
-                        // Add CSS animation to all paths (edges) in the SVG
-                        const style = document.createElement('style');
-                        style.textContent = `
-                            @keyframes flowAnimation {
-                                0% { stroke-dashoffset: var(--path-length); }
-                                100% { stroke-dashoffset: 0; }
-                            }
-                            svg path.flowable {
-                                stroke-dasharray: var(--path-length);
-                                animation: flowAnimation 2s linear infinite;
-                            }
-                        `;
-                        document.head.appendChild(style);
+                        // Access the mxGraph instance
+                        // In embed mode with UI, it's usually at window.EditorUi.editor.graph
+                        // But we need to find the instance safely
                         
-                        // Add flowable class to all paths (edges) and set their length
-                        const paths = document.querySelectorAll('svg path');
+                        // We can look for the EditorUi instance
+                        // Usually accessible via the frames or the App object wrapper?
+                        // Actually, in the configured UI, App.mainUi usually holds the EditorUi
+                        
+                        let graph = null;
+                        if (App && App.mainUi && App.mainUi.editor) {
+                            graph = App.mainUi.editor.graph;
+                        }
+                        
+                        if (!graph) {
+                            return { success: false, error: "Cloud not find mxGraph instance" };
+                        }
+                        
+                        // Transaction for updates
+                        graph.getModel().beginUpdate();
                         let edgeCount = 0;
-                        paths.forEach(path => {
-                            // Only animate paths that look like edges (have stroke)
-                            const stroke = window.getComputedStyle(path).stroke;
-                            if (stroke && stroke !== 'none' && stroke !== 'rgb(0, 0, 0)') {
-                                // Calculate path length for smooth animation
-                                const pathLength = path.getTotalLength();
-                                path.style.setProperty('--path-length', pathLength);
-                                path.style.strokeDasharray = pathLength;
-                                path.style.strokeDashoffset = pathLength;
-                                path.classList.add('flowable');
-                                edgeCount++;
+                        try {
+                            const parent = graph.getDefaultParent();
+                            const children = graph.getChildCells(parent);
+                            
+                            for (let i = 0; i < children.length; i++) {
+                                const cell = children[i];
+                                if (cell.isEdge()) {
+                                    // Set flowAnimation=1
+                                    // We need to preserve existing styles
+                                    let style = cell.getStyle();
+                                    if (!style.includes('flowAnimation=1')) {
+                                        if (style && style[style.length - 1] !== ';') style += ';';
+                                        style += 'flowAnimation=1;';
+                                        graph.getModel().setStyle(cell, style);
+                                        edgeCount++;
+                                    }
+                                }
                             }
-                        });
+                        } finally {
+                            graph.getModel().endUpdate();
+                        }
+                        
+                        // Force refresh
+                        graph.refresh();
                         
                         return { success: true, edgeCount: edgeCount };
                     } catch (error) {
@@ -206,67 +186,49 @@ class AnimationApplicator:
             )
             
             if not animation_result.get("success"):
-                error_msg = animation_result.get("error", "Unknown error")
-                raise AnimationError(f"Failed to apply animation: {error_msg}")
+                # Warning only, don't fail hard if animation is tricky, but log it
+                # REQUIREMENTS say "Application Node... Idempotent execution"
+                # If it fails, we might want to know
+                raise AnimationError(f"Failed to apply animation: {animation_result.get('error')}")
             
-            # Wait for animation to settle
+            edge_count = animation_result.get("edgeCount", 0)
+            if edge_count == 0:
+                logger.warning("No edges found to animate")
+            else:
+                logger.info(f"Applied animation to {edge_count} edges")
+            
+            # Wait a bit to ensure stability
             await asyncio.sleep(0.5)
             
-        except (AnimationError, RenderingError):
-            raise
         except Exception as e:
-            raise AnimationError(f"Unexpected error during animation application: {e}")
+            if isinstance(e, (AnimationError, RenderingError)):
+                raise
+            raise AnimationError(f"Unexpected error: {str(e)}")
 
 
 async def _apply_animation_async(state: GraphState) -> GraphState:
-    """
-    Async implementation of animation application node.
-    
-    Args:
-        state: Current graph state
-        
-    Returns:
-        GraphState: Updated state with animation_applied flag
-    """
-    logger.start(state, {
-        "diagram_rendered": state.get("diagram_rendered"),
-        "has_manifest": state.get("animation_manifest") is not None,
-    })
+    """Async implementation of animation application node."""
+    logger.start(state)
     
     try:
-        # Validate prerequisites
-        if not state.get("diagram_rendered"):
-            raise AnimationError("Diagram must be rendered before applying animation")
-        
         mermaid_code = state.get("mermaid_code")
         if not mermaid_code:
             raise AnimationError("No Mermaid code in state")
-        
-        animation_manifest = state.get("animation_manifest")
-        
-        # Apply animation
+            
         async with AnimationApplicator() as applicator:
-            await applicator.apply_flow_animation(mermaid_code, animation_manifest)
-        
-        # Update state
+            await applicator.apply_flow_animation(mermaid_code, state.get("animation_manifest"))
+            
         state["animation_applied"] = True
-        
         logger.end(state, {"status": "success"})
-        
         return state
         
     except Exception as e:
         logger.error(state, e)
-        state["errors"].append(f"Animation application failed: {str(e)}")
+        state["errors"].append(f"Animation failed: {str(e)}")
         state["animation_applied"] = False
         raise
 
 
 def animation_applicator(state: GraphState) -> GraphState:
-    """
-    Synchronous wrapper for LangGraph compatibility.
-    
-    LangGraph requires synchronous node functions, so this wraps
-    the async implementation in asyncio.run().
-    """
+    """Synchronous wrapper for LangGraph."""
     return asyncio.run(_apply_animation_async(state))

@@ -1,15 +1,21 @@
 """
-Draw.io renderer REFACTORED to use local Mermaid.js renderer.
+Draw.io renderer using headless browser with JavaScript injection.
 
-This module originally drove Draw.io's embed mode but has been refactored
-to use a local HTML file with mermaid.js for better reliability and speed.
-The class name `DrawIODriver` and node name `drawio_renderer` are retained
-for backward compatibility, but the implementation is now 100% local.
+This module drives the headless browser to render Mermaid diagrams using Draw.io's
+embed mode. It uses JavaScript injection via page.evaluate() to call internal APIs,
+avoiding all UI automation.
+
+CRITICAL CONSTRAINTS:
+- NO UI clicks or selectors
+- JavaScript injection only via page.evaluate()
+- Embed mode URL required
+- Headless execution only
 """
 
 import asyncio
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeoutError
 
@@ -18,15 +24,11 @@ from ..core.exceptions import DrawIOImportError, DrawIOTimeoutError, RenderingEr
 from ..core.state import GraphState
 from ..utils.logger import get_logger
 
-# Draw.io offline mode URL - better for programmatic access
-# Using local=1 to enable offline mode which has more reliable API
-DRAWIO_EMBED_URL = "https://embed.diagrams.net/?embed=1&ui=min&spin=1&proto=json&local=1"
+# Draw.io embed mode URL - strictly per REQUIREMENTS.md
+DRAWIO_EMBED_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configure=1"
 
 # Fixed viewport for deterministic rendering
 DEFAULT_VIEWPORT = {"width": 1200, "height": 12000}
-
-# Selectors (for validation only, NOT for clicking)
-DIAGRAM_CONTAINER_SELECTOR = ".geDiagramContainer"
 
 logger = get_logger("drawio_driver")
 
@@ -47,225 +49,195 @@ class DrawIODriver:
         self.config = get_config()
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
-    
+        self.playwright = None
+
     async def __aenter__(self):
         """Async context manager entry."""
-        await self.launch()
+        self.playwright = await async_playwright().start()
+        
+        launch_args = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        }
+        
+        if self.config.chromium_executable_path:
+            launch_args["executable_path"] = str(self.config.chromium_executable_path)
+            
+        self.browser = await self.playwright.chromium.launch(**launch_args)
+        
+        context = await self.browser.new_context(viewport=DEFAULT_VIEWPORT)
+        self.page = await context.new_page()
+        
+        # Navigate to Draw.io embed mode
+        logger.info(f"Navigating to {DRAWIO_EMBED_URL}")
+        try:
+            await self.page.goto(DRAWIO_EMBED_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
+        except PlaywrightTimeoutError:
+            raise DrawIOTimeoutError(f"Timeout navigating to {DRAWIO_EMBED_URL}")
+            
+        # Wait for App object to be available - Critical for reliability
+        try:
+            await self.page.wait_for_function("typeof App !== 'undefined'", timeout=30000)
+        except PlaywrightTimeoutError:
+            raise DrawIOImportError("Draw.io App object not initialized within timeout")
+            
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        await self.close()
-    
-    async def launch(self) -> None:
-        """
-        Launch the headless browser.
-        
-        Raises:
-            DrawIOTimeoutError: If browser launch times out
-        """
-        try:
-            playwright = await async_playwright().start()
-            
-            # Launch Chromium with fixed viewport
-            launch_options = {
-                "headless": True,
-                "args": [
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-gpu",
-                ],
-            }
-            
-            # Use custom Chromium path if specified
-            if self.config.chromium_executable_path:
-                launch_options["executable_path"] = str(self.config.chromium_executable_path)
-            
-            self.browser = await playwright.chromium.launch(**launch_options)
-            
-            # Create page with fixed viewport
-            self.page = await self.browser.new_page(viewport=DEFAULT_VIEWPORT)
-            
-            # Set timeout
-            self.page.set_default_timeout(self.config.browser_timeout_ms)
-            
-        except Exception as e:
-            raise DrawIOTimeoutError(f"Failed to launch browser: {e}")
-    
-    async def close(self) -> None:
-        """Close the browser."""
-        if self.page:
-            await self.page.close()
         if self.browser:
             await self.browser.close()
-    
-    async def render_mermaid(self, mermaid_code: str) -> None:
+        if self.playwright:
+            await self.playwright.stop()
+
+    async def render_mermaid(self, mermaid_code: str) -> bool:
         """
-        Render Mermaid diagram using JavaScript injection.
-        
-        This method:
-        1. Navigates to Draw.io embed mode
-        2. Injects JavaScript to call App.importData()
-        3. Validates the rendered diagram
+        Render Mermaid code using Draw.io's internal API.
         
         Args:
-            mermaid_code: Mermaid diagram code to render
+            mermaid_code: The Mermaid diagram code to render
+            
+        Returns:
+            True if rendering was successful
             
         Raises:
-            DrawIOImportError: If diagram import fails
-            DrawIOTimeoutError: If rendering times out
-            RenderingError: If diagram validation fails
+            DrawIOImportError: If import fails
+            RenderingError: If validation fails
         """
         if not self.page:
-            raise RenderingError("Browser not launched. Call launch() first.")
+            raise RenderingError("Driver not initialized. Use 'async with' context.")
+            
+        logger.info("Importing Mermaid code via App.importData()")
         
         try:
-            # Get path to local mermaid renderer HTML
-            from pathlib import Path
-            renderer_path = Path(__file__).parent / "mermaid_renderer.html"
-            renderer_url = f"file:///{renderer_path.as_posix()}"
-            
-            # Navigate to local HTML renderer
-            await self.page.goto(renderer_url, wait_until="networkidle")
-            
-            # Wait for mermaid.js to be ready
-            await self.page.wait_for_function(
-                "typeof window.mermaidReady !== 'undefined' && window.mermaidReady === true",
-                timeout=self.config.browser_timeout_ms,
-            )
-            
-            # Render the Mermaid diagram
-            render_result = await self.page.evaluate(
+            # Inject JavaScript to call App.importData(mermaid_code, true)
+            # This is the core requirement - NO UI automation
+            import_result = await self.page.evaluate(
                 """
                 async (mermaidCode) => {
-                    return await window.renderMermaid(mermaidCode);
+                    try {
+                        if (typeof App === 'undefined' || !App.importData) {
+                             return { success: false, error: 'App.importData not available' };
+                        }
+                        App.importData(mermaidCode, true);
+                        return { success: true };
+                    } catch (error) {
+                        return { success: false, error: error.message };
+                    }
                 }
                 """,
                 mermaid_code,
             )
             
-            # Check render result
-            if not render_result.get("success"):
-                error_msg = render_result.get("error", "Unknown error")
-                raise DrawIOImportError(f"Failed to render Mermaid diagram: {error_msg}")
+            if not import_result.get("success"):
+                error_msg = import_result.get("error", "Unknown error")
+                raise DrawIOImportError(f"Failed to import Mermaid data: {error_msg}")
             
-            # Wait for SVG to appear
-            await self.page.wait_for_selector(
-                "svg",
-                timeout=self.config.browser_timeout_ms,
-            )
+            # Allow some time for rendering to complete
+            await asyncio.sleep(2.0)
             
-            # Validate diagram bounds
-            await self._validate_diagram()
+            # Validate diagram exists
+            return await self._validate_diagram()
             
-        except PlaywrightTimeoutError as e:
-            raise DrawIOTimeoutError(f"Rendering timed out: {e}")
-        except (DrawIOImportError, RenderingError):
-            raise
         except Exception as e:
-            raise DrawIOImportError(f"Unexpected error during rendering: {e}")
-    
-    async def _validate_diagram(self) -> None:
+            if isinstance(e, (DrawIOImportError, RenderingError)):
+                raise
+            raise RenderingError(f"Unexpected error during rendering: {str(e)}")
+
+    async def _validate_diagram(self) -> bool:
         """
-        Validate that the diagram was rendered correctly.
+        Validate that a diagram was actually rendered.
         
-        Checks that the diagram container has valid dimensions (width/height >= 10px).
-        
-        Raises:
-            RenderingError: If diagram validation fails
+        Checks if the diagram container has content with non-zero dimensions.
         """
         try:
-            # Query SVG diagram bounds using JavaScript
+            # Check for geDiagramContainer which Draw.io uses
             bounds = await self.page.evaluate(
                 """
                 () => {
-                    const svg = document.querySelector('svg');
-                    if (!svg) {
-                        return { width: 0, height: 0, error: 'SVG not found' };
+                    const container = document.querySelector('.geDiagramContainer');
+                    if (!container) {
+                        // Fallback for some view modes
+                        const svg = document.querySelector('svg');
+                        if (svg) {
+                             const rect = svg.getBoundingClientRect();
+                             return { width: rect.width, height: rect.height };
+                        }
+                        return { width: 0, height: 0, error: 'Container not found' };
                     }
-                    const rect = svg.getBoundingClientRect();
+                    // Check first child (usually svg or canvas)
+                    const content = container.firstElementChild;
+                    if (!content) return { width: 0, height: 0 };
+                    
+                    const rect = content.getBoundingClientRect();
                     return { width: rect.width, height: rect.height };
                 }
                 """
             )
             
-            # Check for errors
-            if "error" in bounds:
-                raise RenderingError(f"Diagram validation failed: {bounds['error']}")
-            
-            # Validate dimensions
             width = bounds.get("width", 0)
             height = bounds.get("height", 0)
             
             if width < 10 or height < 10:
-                raise RenderingError(
-                    f"Diagram has invalid dimensions: {width}x{height}px (minimum 10x10px)"
-                )
+                logger.warning(f"Rendered diagram is too small: {width}x{height}")
+                raise RenderingError(f"Rendered diagram is empty or too small ({width}x{height})")
+                
+            logger.info(f"Diagram rendered successfully: {width}x{height}")
+            return True
             
-        except RenderingError:
-            raise
         except Exception as e:
-            raise RenderingError(f"Failed to validate diagram: {e}")
-    
-    async def capture_screenshot(self, output_path: Path) -> None:
-        """
-        Capture a screenshot of the rendered diagram.
-        
-        Args:
-            output_path: Path to save the screenshot
-            
-        Raises:
-            RenderingError: If screenshot capture fails
-        """
+            logger.error(f"Validation failed: {e}")
+            raise RenderingError(f"Failed to validate diagram: {str(e)}")
+
+    async def capture_screenshot(self, output_path: Path) -> Path:
+        """Capture a screenshot of the current page."""
         if not self.page:
-            raise RenderingError("Browser not launched. Call launch() first.")
-        
-        try:
-            # Ensure output directory exists
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            raise RenderingError("Driver not initialized")
             
-            # Capture screenshot of the diagram container
-            await self.page.locator(DIAGRAM_CONTAINER_SELECTOR).screenshot(
-                path=str(output_path)
-            )
-            
-        except Exception as e:
-            raise RenderingError(f"Failed to capture screenshot: {e}")
-
-
+        await self.page.screenshot(path=str(output_path), full_page=True)
+        return output_path
 
 
 async def _render_diagram_node_async(state: GraphState) -> GraphState:
     """
     LangGraph node: Render Mermaid diagram using Draw.io.
-    
-    This node:
-    1. Launches headless browser
-    2. Renders Mermaid diagram via JavaScript injection
-    3. Validates the rendering
-    4. Updates state with diagram_rendered=True
-    
-    Args:
-        state: Current graph state
-        
-    Returns:
-        GraphState: Updated state with diagram_rendered flag
     """
-    logger.start(state, {"mermaid_length": len(state.get("mermaid_code", ""))})
+    logger.start(state)
     
     try:
         mermaid_code = state.get("mermaid_code")
         if not mermaid_code:
             raise RenderingError("No Mermaid code in state")
-        
-        # Render diagram using context manager
+            
         async with DrawIODriver() as driver:
             await driver.render_mermaid(mermaid_code)
-        
-        # Update state
+            
         state["diagram_rendered"] = True
+        # Note: We don't keep the browser open between nodes in this architecture
+        # The AnimationApplicator will need to re-render or re-open.
+        # Ideally, we should pass the browser context, but LangGraph state is serializable.
+        # For this design, we might need to combine render and animate, 
+        # OR re-open in each step.
+        # But wait, REQUIREMENTS say: "Renderer volatility must be isolated".
+        # If we close the browser, we lose the state.
+        # 
+        # However, looking at the graph: Draw.io Renderer -> Animation Applicator -> Capture Controller.
+        # If they are separate nodes, they run separately.
+        # 
+        # The CaptureController needs to launch the browser, render, animate, and capture.
+        # The 'render_diagram_node' here might just be a validation step or 
+        # it might produce an artifact (HTML/XML) that is passed on?
+        # A headless browser *cannot* be passed in state (not serializable).
+        #
+        # Re-reading Requirements:
+        # "Capture Controller Node... Force animation duration... Capture exact duration"
+        
+        # Strategy:
+        # 1. This node (render_diagram_node) validates that Draw.io CAN render it.
+        # 2. CaptureController will re-run the full pipeline (render -> animate -> record) 
+        #    to ensure continuity in a single browser session.
+        # OR
+        # We assume this node is just for "Can it render?" check.
         
         logger.end(state, {"status": "success"})
         return state
@@ -273,7 +245,10 @@ async def _render_diagram_node_async(state: GraphState) -> GraphState:
     except Exception as e:
         logger.error(state, e)
         state["errors"].append(f"Rendering failed: {str(e)}")
-        state["diagram_rendered"] = False
+        # Check if it's an import error to potentially retry or fix
+        if "App.importData" in str(e) or "Parse error" in str(e):
+             # Let the graph routing decide (retry or fix)
+             pass
         raise
 
 

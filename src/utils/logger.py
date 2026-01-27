@@ -135,6 +135,16 @@ class StructuredLogger:
         }
         self._emit_log("ERROR", state, error_metadata, logging.ERROR)
 
+    def info(self, message: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Log general info message.
+        
+        Args:
+            message: Information message
+            metadata: Additional metadata
+        """
+        self._emit_log("INFO", None, {"message": message, **(metadata or {})}, logging.INFO)
+
 
 # ============================================
 # Logger Configuration

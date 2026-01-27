@@ -15,7 +15,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from playwright.async_api import async_playwright, Browser, Page, BrowserContext
+from playwright.async_api import async_playwright, Browser, Page, BrowserContext, TimeoutError as PlaywrightTimeoutError
 
 from ..core.config import get_config
 from ..core.exceptions import CaptureError, RenderingError
@@ -27,9 +27,6 @@ DRAWIO_EMBED_URL = "https://embed.diagrams.net/?ui=min&spin=1&proto=json&configu
 
 # Fixed viewport for deterministic rendering
 DEFAULT_VIEWPORT = {"width": 1200, "height": 1200}
-
-# Selectors
-DIAGRAM_CONTAINER_SELECTOR = ".geDiagramContainer"
 
 logger = get_logger("capture_controller")
 
@@ -51,6 +48,7 @@ class CaptureController:
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self._temp_dir = None
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -153,8 +151,9 @@ class CaptureController:
         This method:
         1. Navigates to Draw.io
         2. Imports the Mermaid diagram
-        3. Waits for the exact animation duration
-        4. Video is automatically recorded by Playwright
+        3. Applies flow animation
+        4. Waits for the exact animation duration
+        5. Video is automatically recorded by Playwright
         
         Args:
             mermaid_code: Mermaid diagram code to render
@@ -168,73 +167,83 @@ class CaptureController:
             raise CaptureError("Browser not launched. Call launch() first.")
         
         try:
-            # Get path to local mermaid renderer HTML
-            renderer_path = Path(__file__).parent / "mermaid_renderer.html"
-            renderer_url = f"file:///{renderer_path.as_posix()}"
+            # 1. Navigate to Draw.io
+            await self.page.goto(DRAWIO_EMBED_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
             
-            # Navigate to local HTML renderer
-            await self.page.goto(renderer_url, wait_until="networkidle")
+            # 2. Wait for App
+            try:
+                await self.page.wait_for_function("typeof App !== 'undefined'", timeout=30000)
+            except PlaywrightTimeoutError:
+                raise RenderingError("Draw.io App object not initialized")
             
-            # Wait for mermaid.js to be ready
-            await self.page.wait_for_function(
-                "typeof window.mermaidReady !== 'undefined' && window.mermaidReady === true",
-                timeout=self.config.browser_timeout_ms,
-            )
-            
-            # Render the Mermaid diagram
-            render_result = await self.page.evaluate(
+            # 3. Import Mermaid
+            import_result = await self.page.evaluate(
                 """
                 async (mermaidCode) => {
-                    return await window.renderMermaid(mermaidCode);
+                    try {
+                        App.importData(mermaidCode, true);
+                        return { success: true };
+                    } catch (error) {
+                        return { success: false, error: error.message };
+                    }
                 }
                 """,
                 mermaid_code,
             )
             
-            if not render_result.get("success"):
-                error_msg = render_result.get("error", "Unknown error")
-                raise RenderingError(f"Failed to render diagram: {error_msg}")
+            if not import_result.get("success"):
+                raise RenderingError(f"Import failed: {import_result.get('error')}")
             
-            # Wait for SVG to appear
-            await self.page.wait_for_selector(
-                "svg",
-                timeout=self.config.browser_timeout_ms,
-            )
-            
-            # Apply CSS animation (same as animation_applicator)
-            await self.page.evaluate(
+            # 4. Apply Animation (mxGraph)
+            animation_result = await self.page.evaluate(
                 """
                 () => {
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        @keyframes flowAnimation {
-                            0% { stroke-dashoffset: var(--path-length); }
-                            100% { stroke-dashoffset: 0; }
+                    try {
+                        let graph = null;
+                        if (App && App.mainUi && App.mainUi.editor) {
+                            graph = App.mainUi.editor.graph;
                         }
-                        svg path.flowable {
-                            stroke-dasharray: var(--path-length);
-                            animation: flowAnimation 2s linear infinite;
+                        
+                        if (!graph) return { success: false, error: "Cloud not find mxGraph instance" };
+                        
+                        graph.getModel().beginUpdate();
+                        let edgeCount = 0;
+                        try {
+                            const parent = graph.getDefaultParent();
+                            const children = graph.getChildCells(parent);
+                            
+                            for (let i = 0; i < children.length; i++) {
+                                const cell = children[i];
+                                if (cell.isEdge()) {
+                                    let style = cell.getStyle();
+                                    if (!style.includes('flowAnimation=1')) {
+                                        if (style && style[style.length - 1] !== ';') style += ';';
+                                        style += 'flowAnimation=1;';
+                                        graph.getModel().setStyle(cell, style);
+                                        edgeCount++;
+                                    }
+                                }
+                            }
+                        } finally {
+                            graph.getModel().endUpdate();
                         }
-                    `;
-                    document.head.appendChild(style);
-                    
-                    const paths = document.querySelectorAll('svg path');
-                    paths.forEach(path => {
-                        const stroke = window.getComputedStyle(path).stroke;
-                        if (stroke && stroke !== 'none' && stroke !== 'rgb(0, 0, 0)') {
-                            const pathLength = path.getTotalLength();
-                            path.style.setProperty('--path-length', pathLength);
-                            path.style.strokeDasharray = pathLength;
-                            path.style.strokeDashoffset = pathLength;
-                            path.classList.add('flowable');
-                        }
-                    });
+                        
+                        graph.refresh();
+                        return { success: true, edgeCount: edgeCount };
+                    } catch (error) {
+                        return { success: false, error: error.message };
+                    }
                 }
                 """
             )
             
+            if not animation_result.get("success"):
+                logger.warning(f"Animation warning: {animation_result.get('error')}")
+            
+            # 5. Record for duration
             # Wait for the exact animation duration to ensure full capture
             # Add a small buffer (0.5s) to ensure we capture the complete loop
+            logger.info(f"Recording for {duration} seconds...")
             await asyncio.sleep(duration + 0.5)
             
         except (CaptureError, RenderingError):
