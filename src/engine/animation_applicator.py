@@ -95,15 +95,17 @@ class AnimationApplicator:
             logger.info("Initializing Draw.io for animation...")
             await self.page.goto(DRAWIO_URL, wait_until="networkidle", timeout=self.config.browser_timeout_ms)
             
-            # Setup (Patching & Init)
+            # Setup (Patching)
             await self.page.evaluate(PATCH_MXGRAPH_JS)
+            
+            # Init & Heartbeat Handshake
+            logger.info("Waiting for Draw.io initialization & handshake...")
             init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
             if not init_success:
-                logger.warning("Draw.io 'init' message timed out")
+                logger.warning("Draw.io 'init' handshake timed out")
             
-            # Configure & Load
-            await self.page.evaluate(SEND_CONFIGURE_JS)
-            await asyncio.sleep(0.5)
+            # Configure & Load (Configure already sent by heartbeat)
+            logger.info("Sending Mermaid code...")
             await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
             
             # Verify Render & Capture

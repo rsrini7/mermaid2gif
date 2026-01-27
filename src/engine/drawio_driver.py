@@ -79,22 +79,19 @@ class DrawIODriver:
             # We patch BEFORE the graph is created to ensure we capture it
             await self.page.evaluate(PATCH_MXGRAPH_JS)
             
-            # 3. Wait for Init
-            # We inject the listener and wait for the promise to resolve
-            logger.info("Waiting for Draw.io initialization...")
+            # 2. Setup (Patching)
+            # We patch BEFORE the graph is created to ensure we capture it
+            await self.page.evaluate(PATCH_MXGRAPH_JS)
+            
+            # 3. Wait for Init & Handshake
+            # The WAIT_FOR_INIT_JS script now handles the 'configure' heartbeat
+            logger.info("Waiting for Draw.io initialization & handshake...")
             init_success = await self.page.evaluate(WAIT_FOR_INIT_JS)
             
             if not init_success:
-                logger.warning("Draw.io 'init' message timed out. Attempting to proceed...")
+                logger.warning("Draw.io 'init' handshake timed out (15s). Proceeding optimistically...")
             
-            # 4. Configure
-            logger.info("Configuring Draw.io...")
-            await self.page.evaluate(SEND_CONFIGURE_JS)
-            
-            # Small buffer for config to process
-            await asyncio.sleep(0.5)
-            
-            # 5. Load Mermaid
+            # 4. Load Mermaid
             logger.info("Sending Mermaid code...")
             await self.page.evaluate(SEND_LOAD_JS, mermaid_code)
             

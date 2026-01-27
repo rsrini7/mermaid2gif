@@ -36,11 +36,12 @@ PATCH_MXGRAPH_JS = """
 # 2. Wait for the 'init' message from the iframe
 #    This confirms the app is ready to receive configuration.
 # 2. Wait for the 'init' message from the iframe OR just proceed if we miss it
-#    Robust strategy: Listen for 'init', but also send 'configure' immediately just in case.
+#    Robust strategy: Listen for 'init', and spam 'configure' until we get it.
 WAIT_FOR_INIT_JS = """
 () => {
     return new Promise(resolve => {
         let initReceived = false;
+        let configureInterval = null;
         
         const handler = (event) => {
             try {
@@ -48,6 +49,7 @@ WAIT_FOR_INIT_JS = """
                 if (data.event === 'init') {
                     console.log('Draw.io Init received!');
                     initReceived = true;
+                    if (configureInterval) clearInterval(configureInterval);
                     window.removeEventListener('message', handler);
                     resolve(true);
                 }
@@ -58,24 +60,29 @@ WAIT_FOR_INIT_JS = """
         
         window.addEventListener('message', handler);
         
-        // Optimistic: Send configure immediately in case we missed init
-        // The app might be ready and waiting.
-        console.log("Sending optimistic configure...");
-        window.postMessage(JSON.stringify({
-            action: 'configure', 
-            config: { css: '' }
-        }), '*');
+        // Heartbeat: Send configure message repeatedly until we get init
+        // This ensures that we catch the app whenever it starts listening.
+        const sendConfigure = () => {
+            console.log("Sending configure heartbeat...");
+            window.postMessage(JSON.stringify({
+                action: 'configure', 
+                config: { css: '' }
+            }), '*');
+        };
         
-        // Short timeout - if we don't get init in 2s, we assume we missed it 
-        // and return true to proceed with load.
+        // Send immediately and then every 500ms
+        sendConfigure();
+        configureInterval = setInterval(sendConfigure, 500);
+        
+        // Timeout after 15s (increased from 3s/10s)
         setTimeout(() => {
+            if (configureInterval) clearInterval(configureInterval);
             window.removeEventListener('message', handler);
             if (!initReceived) {
-                console.warn("Init timeout - checking readiness or proceeding anyway");
-                // If we missed init, we can assume it's ready if we don't error later
+                console.warn("Init timeout - stopped configure heartbeat. Proceeding anyway.");
                 resolve(true); 
             }
-        }, 3000); 
+        }, 15000); 
     });
 }
 """
