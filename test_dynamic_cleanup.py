@@ -12,7 +12,18 @@ from pathlib import Path
 import re
 
 def test_dynamic_cleanup():
-    mermaid_code = "graph TD; A[Check] --> B[Cleanup];"
+    mermaid_code = """flowchart TD
+    A["Start Loop"] --> B["Read PRD.json + progress.txt"]
+    B --> C["Pick Next Task"]
+    C --> D["Implement + Feedback Loops<br/>(tests, lint, types)"]
+    D --> E{"Passes?"}
+    E -->|No| F["Fix & Retry"]
+    F --> D
+    E -->|Yes| G["Commit Code"]
+    G --> H["Update PRD + progress.txt"]
+    H --> I{"All Tasks Done?"}
+    I -->|No| A
+    I -->|Yes| J["Complete"]"""
     
     state = GraphState(
         raw_input=mermaid_code,
