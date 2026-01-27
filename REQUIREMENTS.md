@@ -1,9 +1,9 @@
 # End-to-End Requirement Document
 
-## Project: **Mermaid-GIF (Mermaid → Flow-Animated GIF Automation)**
+## Project: **Mermaid-GIF**
 
-**Version:** **5.0 (Final, Guardrail-Augmented)**
-**Status:** **Approved – Build Contract Locked**
+**Version:** **6.0 (Mermaid Native Pivot)**
+**Status:** **Approved & Active**
 **Execution Model:** Agentic (LangGraph Directed Cyclic Graph)
 **Runtime:** Headless, deterministic, containerized
 
@@ -15,61 +15,24 @@ These guardrails are **binding** and exist to ensure that AI-generated code is r
 
 ### Guardrail 1: Secret Management Strategy
 
-* All secrets **must not** be hardcoded.
-* Configuration **must** be handled using **Pydantic Settings** (`pydantic-settings`).
-* The IDE **must generate**:
+* **Tooling:** Configuration **must** be handled using **Pydantic Settings** (`pydantic-settings`).
+* **Storage:** Secrets are loaded from environment variables or `.env`.
+* **Validation:** Strict type validation is enforced at startup. Failure results in immediate process termination.
+* **Constraints:**
+* `GROQ_API_KEY`: Required (starts with `gsk_`).
+* `OPENROUTER_API_KEY`: Optional fallback.
+* `LITELLM_MODEL`: Configurable (default: `groq/llama-3.3-70b-versatile`).
 
-  * `src/core/config.py`
-  * `.env.example`
 
-**Requirements**
-
-* Secrets are loaded from environment variables or `.env`.
-* Strict validation is enforced at startup.
-
-**Example constraints**
-
-* `OPENROUTER_API_KEY`:
-
-  * Required
-  * Type: `str`
-  * Must start with `sk-or-`
-* Chromium executable paths, FFmpeg paths, and timeouts must be configurable.
-
-Failure to load valid configuration must result in **immediate process termination**.
-
----
 
 ### Guardrail 2: Mock-First Testing Requirement
 
-* The IDE **must generate mocks** before real integrations.
-
-**Mandatory Mocks**
-
-* LiteLLM client (LLM calls)
-* Playwright browser/page/context
-
-**Testing Rules**
-
-* The default **smoke test** must:
-
-  * Run the LangGraph end-to-end
-  * Use mocks only
-  * Validate graph routing, retries, and terminal states
-* No real:
-
-  * API calls
-  * Chromium launches
-  * FFmpeg executions
-
-Real integrations are allowed **only** in explicit integration tests.
-
----
+* **Mandatory Mocks:** LiteLLM client, Playwright browser/page/context.
+* **Rule:** The default `test_smoke.py` must run the entire LangGraph workflow using **ONLY mocks**. No real API calls or browser launches are allowed in the smoke test.
 
 ### Guardrail 3: Structured Logging Schema
 
-All logs must follow this **strict schema**:
-
+* All logs must follow this **strict JSON schema**:
 ```python
 {
   "timestamp": "ISO8601",
@@ -78,15 +41,10 @@ All logs must follow this **strict schema**:
   "state_hash": "sha256(serialized_state)",
   "metadata": {}
 }
+
 ```
 
-**Rules**
 
-* Logs must be JSON-serializable.
-* Every LangGraph node **must emit**:
-
-  * START log
-  * END or ERROR log
 * No free-form logging is allowed.
 
 ---
@@ -95,14 +53,14 @@ All logs must follow this **strict schema**:
 
 Build a **fully autonomous system** that converts:
 
-> **Natural language or Mermaid input → draw.io flow-animated diagram → clean looping GIF**
+> **Natural language or Mermaid input → CSS-animated Mermaid diagram → clean looping GIF**
 
 The system must:
 
 * Run fully headless (CI-safe)
 * Require zero manual interaction
 * Produce deterministic output
-* Isolate volatile browser logic
+* **Render diagrams locally** using the Mermaid.js library (No external UI/SaaS dependencies)
 * Enforce bounded retries
 
 ---
@@ -110,25 +68,25 @@ The system must:
 ## 2. Architectural Principles (Binding)
 
 1. **LangGraph is mandatory**
-   Required for bounded retries, conditional routing, and state persistence.
-
+Required for bounded retry loops, conditional routing, and state persistence.
 2. **Strict separation of concerns**
+* LLMs → intent, correction, planning
+* Deterministic code → rendering, styling, capture, encoding
 
-   * LLMs → intent, correction, planning
-   * Deterministic code → parsing, rendering, capture, encoding
 
-3. **Pure Mermaid Rendering**
+3. **No External SaaS Dependencies for Rendering**
+* **Forbidden:** Draw.io, Kroki, or external rendering APIs.
+* **Required:** Local rendering via `mermaid.min.js` inside Headless Chromium.
 
-   * No external rendering services (like Draw.io)
-   * All rendering via local `mermaid.js` execution
 
-4. **Renderer volatility must be isolated**
+4. **CSS-Driven Animation**
+* Animation is achieved via CSS injection (`stroke-dashoffset` keyframes), not JavaScript graph mutation.
 
-   * All rendering happens in a controlled, invisible browser context
 
 5. **Looping correctness supersedes visual fidelity**
+* A clean looping GIF is more important than animation purity.
 
-   * A clean looping GIF is more important than animation purity
+
 
 ---
 
@@ -136,26 +94,22 @@ The system must:
 
 The system is implemented as a **Directed Cyclic Graph (DCG)** using LangGraph.
 
-```
-Input
-  ↓
-Intent & Mermaid Agent
-  ↓
-Mermaid Validator
-  ↓ (invalid)
-Mermaid Fix Agent ──┐
-  ↓ (valid)         │
-Animation Planner   │
-  ↓                 │
-Mermaid Renderer ←──┘
-  ↓
-Animation Applicator
-  ↓
-Capture Controller
-  ↓
-FFmpeg Transcoder
-  ↓
-Final Output
+```mermaid
+graph TD
+    Input --> InputRouter
+    InputRouter -->|Text| IntentAgent
+    InputRouter -->|Mermaid| MermaidValidator
+    IntentAgent --> MermaidValidator
+    MermaidValidator -->|Invalid| FixAgent
+    FixAgent -->|Retry <= 2| MermaidValidator
+    FixAgent -->|Retry > 2| EndFail
+    MermaidValidator -->|Valid| AnimationPlanner
+    AnimationPlanner --> MermaidRenderer
+    MermaidRenderer --> AnimationApplicator
+    AnimationApplicator --> CaptureController
+    CaptureController --> FFmpegTranscoder
+    FFmpegTranscoder --> EndSuccess
+
 ```
 
 Retries are **node-local and bounded**.
@@ -164,17 +118,17 @@ Retries are **node-local and bounded**.
 
 ## 4. Technology Stack (Final)
 
-| Layer            | Technology                        |
-| ---------------- | --------------------------------- |
-| Orchestration    | LangGraph                         |
-| LLM Interface    | LiteLLM                           |
-| LLM Provider     | Groq, OpenRouter (Optional)       |
-| Mermaid Parsing  | `mermaid-parser-py`               |
-| Rendering Engine | Native Mermaid.js (via Playwright)  |
-| Browser Control  | Playwright (Python, Chromium)     |
-| Media Processing | FFmpeg (`ffmpeg-python`)          |
-| Config           | Pydantic Settings                 |
-| Runtime          | Docker (Python 3.11 + Node.js 20) |
+| Layer | Technology |
+| --- | --- |
+| Orchestration | LangGraph |
+| LLM Interface | LiteLLM |
+| LLM Provider | **Groq (Llama 3.3 70B)** / OpenRouter |
+| Rendering Engine | **Mermaid.js (Local/CDN)** |
+| Browser Control | Playwright (Python, Chromium) |
+| Animation | **CSS3 Keyframes** |
+| Media Processing | FFmpeg (`ffmpeg-python`) |
+| Config | Pydantic Settings |
+| Runtime | Docker (Python 3.11 + Node.js 20) |
 
 ---
 
@@ -182,37 +136,31 @@ Retries are **node-local and bounded**.
 
 ```text
 mermaid-gif/
+├── config/
+│   ├── llm_config.yaml
+│   └── animation_presets.json
 ├── src/
 │   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── fixer.py
-│   │   └── intent.py
+│   │   ├── intent.py
+│   │   └── fixer.py
 │   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   ├── exceptions.py
+│   │   ├── state.py
 │   │   ├── graph.py
-│   │   └── state.py
+│   │   ├── config.py
+│   │   └── exceptions.py
 │   ├── engine/
-│   │   ├── __init__.py
-│   │   ├── animation_applicator.py
-│   │   ├── capture_controller.py
-│   │   ├── ffmpeg_processor.py
-│   │   ├── mermaid_renderer.py
 │   │   ├── mermaid_validator.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   └── logger.py
-│   ├── __init__.py
-│   └── main.py
+│   │   ├── mermaid_renderer.py     <-- Native Mermaid Rendering
+│   │   ├── animation_applicator.py <-- CSS Injection
+│   │   ├── capture_controller.py
+│   │   └── ffmpeg_processor.py
+│   └── utils/
+│       └── logger.py
 ├── tests/
-│   ├── mocks/
-│   ├── __init__.py
-│   └── test_smoke.py
-├── .env.example
 ├── Dockerfile
 ├── pyproject.toml
-└── README.md
+└── .env.example
+
 ```
 
 ---
@@ -235,6 +183,7 @@ class GraphState(TypedDict):
     errors: List[str]
     artifacts: Dict[str, Any]
     retry_count: int
+
 ```
 
 ---
@@ -243,168 +192,101 @@ class GraphState(TypedDict):
 
 ### 7.1 Input Router Node
 
-* Determines Mermaid vs text input
-* Deterministic logic only
-* No LLM usage
-
----
+* Determines Mermaid vs text input.
+* Deterministic logic only.
 
 ### 7.2 Intent & Mermaid Generation Agent
 
-* Converts text → Mermaid
-* Produces animation manifest
-* Restricted to a **safe Mermaid subset**
-
-  * Flowcharts
-  * Simple sequences
-
----
+* Converts text → Mermaid.
+* **Constraint:** Output must be compatible with standard `mermaid.js` rendering.
+* **Model:** Llama 3.3 70B (via Groq) is preferred for JSON/Mermaid generation.
 
 ### 7.3 Mermaid Validator Node
 
-**Library:** `mermaid-parser-py`
-
-* Parses Mermaid into structured representation
-* Detects syntax and structural errors
-* No auto-fixing
-* No rendering assumptions
-
----
+* **Library:** `mermaid-parser-py`.
+* Parses Mermaid into structured representation.
+* Detects syntax errors before rendering to save cycles.
 
 ### 7.4 Mermaid Fix Agent
 
-* Repairs syntax only
-* Max 2 retries
-* Exceed → terminal failure
-
----
+* Repairs syntax only.
+* Max 2 retries.
 
 ### 7.5 Animation Planner Node
 
-* Deterministic normalization of animation settings
-* No LLM usage
+* Deterministic normalization of animation settings.
+* No LLM usage.
 
----
+### 7.6 Mermaid Renderer Node (**Native**)
 
-### 7.6 Mermaid Renderer Node (Critical)
+* **Strategy:** Local HTML Shell.
+* **Logic:**
+1. Launch Headless Chromium.
+2. Load a local HTML template containing `mermaid.min.js`.
+3. Execute `mermaid.render(id, code)` via `page.evaluate()`.
+4. Capture the resulting SVG HTML.
+5. **Output:** Store raw HTML in `state["artifacts"]["render_html"]`.
 
-**Rendering Strategy**
 
-* Use **Playwright** with local HTML shell
-* Inject `mermaid.min.js` from CDN
-* Render to SVG via `mermaid.render()`
 
-**Rules**
+### 7.7 Animation Applicator Node (**CSS Injection**)
 
-* Use `page.set_content()`
-* Wait for `mermaid` object
-* Capture SVG output directly
-* No external service dependencies
+* **Strategy:** CSS Keyframes.
+* **Logic:**
+1. Load `render_html`.
+2. Inject `<style>` block targeting `.edgePath .path`.
+3. Apply `stroke-dasharray` (e.g., `10, 10`) and `@keyframes flow` animation (animating `stroke-dashoffset`).
+4. **Output:** Store animated HTML in `state["artifacts"]["animated_html"]`.
 
----
 
-### 7.7 Animation Applicator Node
 
-* Access `mxGraph`
-* Apply `flowAnimation=1`
-* Idempotent execution
-* Layout stabilization before mutation
+### 7.8 Capture Controller Node
 
----
+* **Strategy:** Browser Recording.
+* **Logic:**
+1. `page.set_content(animated_html)`.
+2. Start video capture.
+3. Wait for `duration` (from manifest).
+4. Stop capture and save `.webm`.
 
-### 7.8 Capture Controller Node (Loop Safety)
 
-**Directive-Driven**
-
-* Force animation duration to frame-aligned multiples
-* Capture exact duration
-* No time guessing
-
----
 
 ### 7.9 FFmpeg Transcoder Node
 
-* Palette-based GIF generation
-* Enforce seamless looping
-* Optional boomerang/crossfade stabilization
-
----
+* Palette-based GIF generation.
+* Enforce seamless looping.
 
 ### 7.10 Final Output Node
 
-* Validate GIF integrity
-* Attach artifacts
-* Emit success metadata
+* Validate GIF integrity.
+* Attach artifacts.
 
 ---
 
-## 8. Node Isolation (Directive C)
+## 8. Node Isolation
 
-* `mermaid-parser-py` must run:
-
-  * In a subprocess or isolated thread
-* Node.js startup latency must not block the graph
+* `mermaid-parser-py` must run in a subprocess or isolated thread.
+* Node.js startup latency must not block the graph.
 
 ---
 
 ## 9. Error Handling & Recovery
 
-| Failure             | Action               |
-| ------------------- | -------------------- |
-| Mermaid parse error | Fix loop             |
-| Import failure      | Renderer retry       |
-| Animation missing   | Reapply              |
-| Loop imperfect      | FFmpeg stabilization |
-| Retry exhausted     | Terminal failure     |
+| Failure | Action |
+| --- | --- |
+| Mermaid parse error | Loop → Fix Agent |
+| Render exception | Terminal Failure |
+| Animation missing | Retry Applicator |
+| Retry exhausted | Terminal failure |
 
 ---
 
-## 10. Determinism & Reproducibility
-
-* Fixed Chromium version
-* Fixed viewport
-* Fixed animation duration
-* Fixed FFmpeg filters
-* Dockerized runtime
-
----
-
-## 11. Security Constraints
-
-* No external service dependencies (except CDN)
-* No persistent browser state
-* No user sessions or logins
-* Strict secret handling via environment
-
----
-
-## 12. Testing Requirements (Expanded)
-
-* Mock-only smoke test required
-* Graph routing validated without real IO
-* Integration tests explicitly separated
-
----
-
-## 13. Deliverables (Mandatory)
+## 10. Deliverables
 
 1. LangGraph `graph.py`
-2. All node implementations
+2. **Mermaid Native** Node implementations
 3. Pydantic config + `.env.example`
-4. Dockerfile
+4. Dockerfile (Chromium + Python)
 5. Mock-first tests
 6. Sample GIF outputs
 7. CI-safe smoke test
-
----
-
-## 14. Completion Criteria
-
-The system is complete when:
-
-* ✅ Fully headless
-* ✅ Perfectly looping GIF
-* ✅ No external rendering dependencies
-* ✅ Bounded retries enforced
-* ✅ Logs conform to schema
-* ✅ Same input → same output
