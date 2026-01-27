@@ -1,6 +1,6 @@
 """
 Animation Applicator for Mermaid.js SVG
-Injects CSS animations into rendered Mermaid diagrams
+Injects path-based animations into rendered Mermaid diagrams
 """
 
 from playwright.async_api import async_playwright
@@ -26,7 +26,7 @@ def apply_animation_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 async def _apply_animation_async(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Apply CSS animations to rendered Mermaid SVG.
+    Apply path-based animations to rendered Mermaid SVG.
     
     Args:
         state: Graph state containing render_html artifact
@@ -62,7 +62,7 @@ async def _apply_animation_async(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class AnimationApplicator:
-    """Applies CSS animations to Mermaid SVG diagrams"""
+    """Applies path-based animations to Mermaid SVG diagrams"""
     
     def __init__(self):
         self.config = get_config()
@@ -70,13 +70,13 @@ class AnimationApplicator:
     
     async def apply_animations(self, render_html: str) -> str:
         """
-        Inject CSS animations into rendered HTML.
+        Inject path-based animations into rendered HTML.
         
         Args:
             render_html: HTML with rendered Mermaid SVG
             
         Returns:
-            HTML with CSS animations injected
+            HTML with animations injected
         """
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(
@@ -90,71 +90,70 @@ class AnimationApplicator:
                 self.logger.info("Loading rendered HTML")
                 await page.set_content(render_html)
                 
-                # Inject CSS animation styles
-                self.logger.info("Injecting CSS animations")
+                # Inject JavaScript-based path animation for flowing arrows
+                self.logger.info("Injecting path-based animations")
                 
-                animation_css = """
-                <style id="mermaid-animations">
-                    /* Animate edge paths with flowing dashed lines */
-                    .edgePath .path,
-                    .flowchart-link {
-                        stroke-dasharray: 8 4;
-                        animation: flow 3s linear infinite;
+                result = await page.evaluate("""
+                    () => {
+                        // Find all edge paths
+                        const edgePaths = document.querySelectorAll('.edgePath path, .flowchart-link');
+                        
+                        edgePaths.forEach((path, index) => {
+                            // Get the total length of the path
+                            const pathLength = path.getTotalLength();
+                            
+                            // Set up stroke-dasharray: 15% of path length for dash, 5% for gap
+                            const dashLength = pathLength * 0.15;
+                            const gapLength = pathLength * 0.05;
+                            path.style.strokeDasharray = `${dashLength} ${gapLength}`;
+                            
+                            // Start with offset at full path length (invisible)
+                            path.style.strokeDashoffset = pathLength;
+                            
+                            // Create unique animation for this path
+                            const animationName = `flow-${index}`;
+                            const styleSheet = document.createElement('style');
+                            styleSheet.textContent = `
+                                @keyframes ${animationName} {
+                                    to {
+                                        stroke-dashoffset: 0;
+                                    }
+                                }
+                            `;
+                            document.head.appendChild(styleSheet);
+                            
+                            // Apply animation - flows from start to end of path
+                            path.style.animation = `${animationName} 3s linear infinite`;
+                        });
+                        
+                        // Add subtle pulse to nodes
+                        const pulseStyle = document.createElement('style');
+                        pulseStyle.textContent = `
+                            @keyframes nodePulse {
+                                0%, 100% {
+                                    opacity: 1;
+                                }
+                                50% {
+                                    opacity: 0.95;
+                                }
+                            }
+                            .node rect, .node circle, .node polygon {
+                                animation: nodePulse 4s ease-in-out infinite;
+                                transform-origin: center;
+                            }
+                        `;
+                        document.head.appendChild(pulseStyle);
+                        
+                        return { 
+                            success: true, 
+                            pathsAnimated: edgePaths.length 
+                        };
                     }
-                    
-                    /* Keyframe animation for flowing effect */
-                    @keyframes flow {
-                        0% { stroke-dashoffset: 0;
-                        }
-                        100% { stroke-dashoffset: -12;
-                        }
-                    }
-                    
-                    /* Optional: Pulse animation for nodes */
-                    .node rect,
-                    .node circle,
-                    .node polygon {
-                        animation: pulse 4s ease-in-out infinite;
-                    }
-                    
-                    @keyframes pulse {
-                        0%, 100% {
-                            opacity: 1; transform: scale(1);
-                        }
-                        50% {
-                            opacity: 0.95; transform: scale(1.02);
-                        }
-                    }
-                </style>
-                """
+                """)
                 
-                await page.evaluate(f"""
-                    (css) => {{
-                        // Find the SVG element
-                        const svg = document.querySelector('svg');
-                        if (!svg) {{
-                            throw new Error('No SVG found in document');
-                        }}
-                        
-                        // Create style element
-                        const styleElement = document.createElement('style');
-                        styleElement.id = 'mermaid-animations';
-                        styleElement.textContent = css;
-                        
-                        // Insert into SVG or head
-                        if (svg.querySelector('defs')) {{
-                            svg.querySelector('defs').appendChild(styleElement);
-                        }} else {{
-                            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                            defs.appendChild(styleElement);
-                            svg.insertBefore(defs, svg.firstChild);
-                        }}
-                        
-                        return {{ success: true }};
-                    }}
-                """, animation_css)
-                
-                self.logger.info("CSS animations injected successfully")
+                self.logger.info("Path animations injected successfully", metadata={
+                    "paths_animated": result.get("pathsAnimated", 0)
+                })
                 
                 # Get the updated HTML
                 animated_html = await page.content()
@@ -163,4 +162,3 @@ class AnimationApplicator:
                 
             finally:
                 await browser.close()
-
