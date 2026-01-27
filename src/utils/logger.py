@@ -145,6 +145,16 @@ class StructuredLogger:
         """
         self._emit_log("INFO", None, {"message": message, **(metadata or {})}, logging.INFO)
 
+    def warning(self, message: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Log warning message.
+        
+        Args:
+            message: Warning message
+            metadata: Additional metadata
+        """
+        self._emit_log("WARNING", None, {"message": message, **(metadata or {})}, logging.WARNING)
+
 
 # ============================================
 # Logger Configuration
