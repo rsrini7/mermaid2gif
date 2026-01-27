@@ -80,7 +80,13 @@ class FFmpegProcessor:
             # 2. Generate palette: [a] palettegen [p]
             # 3. Apply palette: [b][p] paletteuse
             
-            input_stream = ffmpeg.input(str(video_path))
+            # Skip first 1.0 second (loading buffer) and take duration length
+            # This ensures we get a clean loop without blank frames
+            input_stream = ffmpeg.input(
+                str(video_path),
+                ss=1.0,
+                t=self.config.default_animation_duration  # 5.0s by default
+            )
             
             # Split the video stream into two branches with labels
             split_outputs = input_stream.video.split()

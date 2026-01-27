@@ -123,14 +123,15 @@ class CaptureController:
                 await page.wait_for_selector("svg", timeout=5000)
                 
                 self.logger.info("Starting video recording", metadata={
-                    "duration_seconds": duration
+                    "duration_seconds": duration,
+                    "buffer_seconds": 2.0
                 })
                 
-                # Record for slightly less than full duration to avoid capturing
-                # any blank frames when the animation loops or page closes
-                # This creates a seamless loop in the final GIF
-                record_duration = duration - 0.1  # 100ms buffer
-                await asyncio.sleep(record_duration)
+                # Record longer than needed to create buffers at start and end
+                # Start buffer (1.0s): Hides loading/blank frame
+                # End buffer (1.0s): Hides context closing
+                # We will trim this in FFmpeg later
+                await asyncio.sleep(duration + 2.0)
                 
                 self.logger.info("Video recording complete")
                 
