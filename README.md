@@ -7,39 +7,40 @@
 
 ## Overview
 
-Mermaid-GIF is a fully autonomous, headless system that converts Mermaid diagrams into flow-animated GIFs. The system uses LangGraph for orchestration, LiteLLM for LLM interactions, and Playwright for browser automation.
+Mermaid-GIF is a fully autonomous, headless system that converts Mermaid diagrams into flow-animated GIFs. The system uses LangGraph for orchestration, LiteLLM for LLM interactions, Playwright for browser automation, and FFmpeg for high-quality media processing.
 
 **Key Features:**
-- 🤖 Fully autonomous (zero manual interaction)
-- 🎯 Headless execution (CI-safe)
-- 🔄 Deterministic output (same input → same output)
-- 🎬 Flow-animated diagrams with seamless looping
-- 🛡️ Bounded retries and robust error handling
-- 📊 Structured logging for observability
+- 🤖 **Fully Autonomous:** Zero manual interaction required
+- 🎯 **Headless Execution:** CI/CD safe
+- 🔄 **Seamles Loops:** "Buffered Recording" technology eliminates blank frames
+- 🎬 **Flow Animation:** Path-based animation that flows correctly along arrows
+- 📊 **High Quality:** 1280px HD output with optimized 256-color palettes
 
 ## Architecture
 
 The system is implemented as a **Directed Cyclic Graph (DCG)** using LangGraph:
 
-```
-Input → Intent Agent → Validator → Fix Agent ⟲
-                          ↓
-        Animation Planner → Draw.io Renderer
-                          ↓
-        Animation Applicator → Capture Controller
-                          ↓
-        FFmpeg Transcoder → Final Output
+```mermaid
+graph TD
+    Input --> Intent_Agent
+    Intent_Agent --> Validator
+    Validator -->|Valid| Mermaid_Renderer
+    Validator -->|Invalid| Fix_Agent
+    Fix_Agent --> Validator
+    Mermaid_Renderer --> Animation_Applicator
+    Animation_Applicator --> Capture_Controller
+    Capture_Controller --> FFmpeg_Transcoder
+    FFmpeg_Transcoder --> Final_Output
 ```
 
 ## Technology Stack
 
 - **Orchestration:** LangGraph
-- **LLM Interface:** LiteLLM
-- **LLM Provider:** OpenRouter
-- **Mermaid Parsing:** mermaid-parser-py
-- **Rendering:** Draw.io (embed mode)
+- **LLM Interface:** LiteLLM (OpenRouter)
+- **Rendering:** Native Mermaid.js (via Playwright)
+- **Animation:** JavaScript Path-Based Calculation
 - **Browser Control:** Playwright (Chromium)
-- **Media Processing:** FFmpeg
+- **Media Processing:** FFmpeg (Palette-based encoding)
 - **Configuration:** Pydantic Settings
 
 ## Installation
@@ -47,8 +48,7 @@ Input → Intent Agent → Validator → Fix Agent ⟲
 ### Prerequisites
 
 - Python 3.11+
-- FFmpeg
-- Node.js 20+ (for mermaid-parser-py)
+- FFmpeg (must be in system PATH)
 
 ### Setup
 
@@ -61,17 +61,29 @@ cd mermaid-gif
 2. Install dependencies:
 ```bash
 pip install -e .
-```
-
-3. Install Playwright browsers:
-```bash
 playwright install chromium
 ```
 
-4. Configure environment:
+3. Configure environment:
 ```bash
 cp .env.example .env
 # Edit .env and add your OPENROUTER_API_KEY
+```
+
+## Usage
+
+### Basic Usage
+
+```bash
+# Convert text to GIF
+python -m src.main "Create a flowchart showing user authentication flow"
+```
+
+### Direct Mermaid Code
+
+```bash
+# Convert Mermaid code directly
+python -m src.main "graph TD; A[Start] --> B{Check}; B -->|Yes| C[OK];"
 ```
 
 ## Configuration
@@ -79,155 +91,39 @@ cp .env.example .env
 All configuration is managed through environment variables or `.env` file:
 
 ### Required
-- `OPENROUTER_API_KEY`: OpenRouter API key (must start with `sk-or-`)
+- `OPENROUTER_API_KEY`: OpenRouter API key
 
 ### Optional
-- `LITELLM_MODEL`: LiteLLM model identifier (default: `openrouter/anthropic/claude-3.5-sonnet`)
-- `BROWSER_TIMEOUT_MS`: Browser timeout in milliseconds (default: 30000)
-- `VIEWPORT_WIDTH`: Browser viewport width (default: 1920)
-- `VIEWPORT_HEIGHT`: Browser viewport height (default: 1080)
+- `LITELLM_MODEL`: LLM model identifier (default: `openrouter/anthropic/claude-3.5-sonnet`)
 - `DEFAULT_ANIMATION_DURATION`: Animation duration in seconds (default: 5.0)
-- `DEFAULT_FPS`: Frame rate for GIF (default: 30)
+- `VIEWPORT_WIDTH`: Browser viewport width (default: 1280)
 - `LOG_LEVEL`: Logging level (default: INFO)
-- `STRUCTURED_LOGGING`: Enable JSON logging (default: true)
-
-See `.env.example` for complete configuration options.
-
-## Usage
-
-### Basic Usage
-
-```python
-from src.core.state import create_initial_state
-from src.core.graph import run_graph
-
-# Create initial state
-state = create_initial_state(
-    raw_input="Create a flowchart showing user authentication flow",
-    input_type="text"
-)
-
-# Run the graph
-result = run_graph(state)
-
-# Access the output
-print(f"GIF created at: {result['gif_path']}")
-```
-
-### Using Mermaid Code Directly
-
-```python
-mermaid_code = """
-graph TD
-    A[Start] --> B{Is user logged in?}
-    B -->|Yes| C[Show Dashboard]
-    B -->|No| D[Show Login]
-    D --> E[Authenticate]
-    E --> C
-"""
-
-state = create_initial_state(
-    raw_input=mermaid_code,
-    input_type="mermaid"
-)
-
-result = run_graph(state)
-```
 
 ## Project Structure
 
 ```
 mermaid-gif/
-├── config/                      # Configuration files
-│   ├── llm_config.yaml         # LLM agent settings
-│   └── animation_presets.json  # Animation presets
 ├── src/
 │   ├── agents/                 # LLM-powered agents
-│   │   ├── intent.py          # Intent & Mermaid generation
-│   │   └── fixer.py           # Mermaid syntax repair
 │   ├── core/                   # Core system components
-│   │   ├── state.py           # GraphState definition
-│   │   ├── graph.py           # LangGraph orchestration
-│   │   ├── config.py          # Pydantic Settings
-│   │   └── exceptions.py      # Custom exceptions
 │   ├── engine/                 # Deterministic nodes
-│   │   ├── mermaid_validator.py
-│   │   ├── drawio_driver.py
+│   │   ├── mermaid_renderer.py # (impl in drawio_driver.py)
 │   │   ├── animation_applicator.py
 │   │   ├── capture_controller.py
 │   │   └── ffmpeg_processor.py
 │   └── utils/
-│       └── logger.py          # Structured logging
 ├── tests/
-│   ├── mocks/                 # Mock implementations
-│   └── test_graph_smoke.py   # Smoke tests
 ├── Dockerfile
-├── pyproject.toml
 └── .env.example
 ```
 
-## Testing
+## Critical Constraints & Design
 
-### Mock-First Smoke Test
-
-```bash
-pytest tests/test_graph_smoke.py
-```
-
-This test validates:
-- Graph routing logic
-- Retry mechanisms
-- Terminal states
-- No real API calls or browser launches
-
-### Integration Tests
-
-```bash
-pytest tests/integration/
-```
-
-## Development
-
-### Code Quality
-
-```bash
-# Format code
-black src/ tests/
-
-# Lint code
-ruff check src/ tests/
-```
-
-### Logging
-
-All logs follow a strict JSON schema:
-
-```json
-{
-  "timestamp": "2026-01-27T08:00:00Z",
-  "node": "intent_agent",
-  "event": "START",
-  "state_hash": "abc123...",
-  "metadata": {}
-}
-```
-
-## Critical Constraints
-
-1. **No UI Automation**: Draw.io interaction via JavaScript injection only (`page.evaluate()`)
-2. **Headless Only**: No manual interaction required
-3. **Bounded Retries**: Maximum 2 retries per fix loop
-4. **Strict Validation**: Configuration errors terminate immediately
-5. **Deterministic**: Same input always produces same output
+1. **No External Dependencies:** Bypassed Draw.io completely. Rendering is pure local Mermaid.js.
+2. **Headless Only:** No manual interaction required.
+3. **Deterministic:** Same input always produces same output.
+4. **Buffered Capture:** Recording time is `Duration + 2s` to ensure clean loops.
 
 ## License
 
 MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
-
-## Support
-
-For issues and questions, please open a GitHub issue.
