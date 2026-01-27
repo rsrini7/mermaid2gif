@@ -219,24 +219,25 @@ class GraphState(TypedDict):
 
 ### 7.6 Mermaid Renderer Node (**Native**)
 
-* **Strategy:** Local HTML Shell.
+* **Strategy:** In-Memory HTML Shell.
 * **Logic:**
 1. Launch Headless Chromium.
-2. Load a local HTML template containing `mermaid.min.js`.
+2. Construct in-memory HTML shell containing `mermaid.min.js` (CDN).
 3. Execute `mermaid.render(id, code)` via `page.evaluate()`.
 4. Capture the resulting SVG HTML.
 5. **Output:** Store raw HTML in `state["artifacts"]["render_html"]`.
 
 
 
-### 7.7 Animation Applicator Node (**CSS Injection**)
+### 7.7 Animation Applicator Node (**Smart JS Injection**)
 
-* **Strategy:** CSS Keyframes.
+* **Strategy:** Dynamic JavaScript Path Calculation.
 * **Logic:**
 1. Load `render_html`.
-2. Inject `<style>` block targeting `.edgePath .path`.
-3. Apply `stroke-dasharray` (e.g., `10, 10`) and `@keyframes flow` animation (animating `stroke-dashoffset`).
-4. **Output:** Store animated HTML in `state["artifacts"]["animated_html"]`.
+2. Execute JavaScript to find all edge paths (`.edgePath path`).
+3. For each path, calculate `getTotalLength()` dynamically.
+4. Apply dynamic `stroke-dasharray` (15% dash, 5% gap) and specific keyframes.
+5. **Output:** Store animated HTML in `state["artifacts"]["animated_html"]`.
 
 
 
