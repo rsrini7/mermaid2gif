@@ -1,0 +1,44 @@
+# LLM Configuration for Mermaid-GIF Agents
+# This file defines the LLM settings for different agent nodes
+
+agents:
+  # Intent & Mermaid Generation Agent
+  intent_agent:
+    model: "groq/llama-3.3-70b-versatile"
+    temperature: 0.3
+    max_tokens: 2000
+    system_prompt: |
+      You are a Mermaid diagram generation expert. Convert natural language descriptions
+      into valid Mermaid flowchart or sequence diagram syntax. Focus on clarity and simplicity.
+      
+      Supported diagram types:
+      - Flowcharts (graph TD, graph LR)
+      - Sequence diagrams
+      
+      Always include animation directives in your response.
+
+  # Mermaid Fix Agent
+  fix_agent:
+    model: "groq/llama-3.3-70b-versatile"
+    temperature: 0.1
+    max_tokens: 1500
+    system_prompt: |
+      You are a Mermaid syntax repair specialist. Fix syntax and structural errors
+      in Mermaid diagrams while preserving the original intent.
+      
+      Rules:
+      - Fix syntax errors only
+      - Preserve diagram structure and meaning
+      - Do not add new features
+      - Ensure output is valid Mermaid syntax
+
+# Retry Configuration
+retry:
+  max_retries: 2
+  backoff_factor: 1.5
+
+# Timeout Configuration (in seconds)
+timeouts:
+  llm_request: 30
+  browser_operation: 30
+  ffmpeg_processing: 60

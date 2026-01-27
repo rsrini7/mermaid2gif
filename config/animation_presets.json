@@ -1,0 +1,62 @@
+{
+    "presets": {
+        "default": {
+            "name": "Default Flow Animation",
+            "description": "Standard flow animation with smooth transitions",
+            "duration_seconds": 5.0,
+            "fps": 30,
+            "flow_animation": true,
+            "animation_speed": 1.0,
+            "loop_mode": "seamless"
+        },
+        "fast": {
+            "name": "Fast Flow Animation",
+            "description": "Quick animation for simple diagrams",
+            "duration_seconds": 3.0,
+            "fps": 30,
+            "flow_animation": true,
+            "animation_speed": 1.5,
+            "loop_mode": "seamless"
+        },
+        "slow": {
+            "name": "Slow Flow Animation",
+            "description": "Detailed animation for complex diagrams",
+            "duration_seconds": 8.0,
+            "fps": 30,
+            "flow_animation": true,
+            "animation_speed": 0.7,
+            "loop_mode": "seamless"
+        },
+        "presentation": {
+            "name": "Presentation Mode",
+            "description": "High-quality animation for presentations",
+            "duration_seconds": 10.0,
+            "fps": 60,
+            "flow_animation": true,
+            "animation_speed": 0.8,
+            "loop_mode": "seamless"
+        }
+    },
+    "gif_encoding": {
+        "palette_generation": {
+            "stats_mode": "full",
+            "dither": "bayer:bayer_scale=3"
+        },
+        "optimization": {
+            "lossy": 80,
+            "optimize_level": 3
+        },
+        "loop": {
+            "mode": "infinite",
+            "count": 0
+        }
+    },
+    "stabilization": {
+        "enabled": true,
+        "methods": [
+            "frame_alignment",
+            "crossfade"
+        ],
+        "crossfade_duration_frames": 3
+    }
+}
