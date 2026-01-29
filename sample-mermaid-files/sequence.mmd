@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant User
+    participant System
+    participant Database
+    
+    User->>System: Login Request
+    System->>Database: Validate Credentials
+    Database-->>System: User Data
+    System-->>User: Login Success

@@ -9,6 +9,16 @@
 
 Mermaid-GIF is a fully autonomous, headless system that converts Mermaid diagrams into flow-animated GIFs. The system uses LangGraph for orchestration, LiteLLM for LLM interactions, Playwright for browser automation, and FFmpeg for high-quality media processing.
 
+### Demo: .mmd files to animated diagram
+
+![assets/Mermaid2GIF1.gif](assets/Mermaid2GIF1.gif)
+
+---
+
+### Demo: Natural language to animated diagram
+
+![assets/Mermaid2GIF2.gif](assets/Mermaid2GIF2.gif)
+
 **Key Features:**
 - 🤖 **Fully Autonomous:** Zero manual interaction required
 - 🎯 **Headless Execution:** CI/CD safe
