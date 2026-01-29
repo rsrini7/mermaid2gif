@@ -1,0 +1,10 @@
+graph TD
+    Input --> Intent_Agent
+    Intent_Agent --> Validator
+    Validator -->|Valid| Mermaid_Renderer
+    Validator -->|Invalid| Fix_Agent
+    Fix_Agent --> Validator
+    Mermaid_Renderer --> Animation_Applicator
+    Animation_Applicator --> Capture_Controller
+    Capture_Controller --> FFmpeg_Transcoder
+    FFmpeg_Transcoder --> Final_Output

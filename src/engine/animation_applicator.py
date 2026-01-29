@@ -50,6 +50,9 @@ async def _apply_animation_async(state: Dict[str, Any]) -> Dict[str, Any]:
         # Store in artifacts
         state["artifacts"]["animated_html"] = animated_html
         
+        # Set flag to indicate successful animation application
+        state["animation_applied"] = True
+        
         logger.info("Animation application completed", metadata={
             "html_size": len(animated_html),
             "animation_duration": duration

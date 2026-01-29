@@ -53,6 +53,9 @@ async def _render_mermaid_async(state: Dict[str, Any]) -> Dict[str, Any]:
             state["artifacts"] = {}
         state["artifacts"]["render_html"] = render_html
         
+        # Set flag to indicate successful rendering
+        state["diagram_rendered"] = True
+        
         logger.info("Mermaid rendering completed", metadata={
             "html_size": len(render_html)
         })
