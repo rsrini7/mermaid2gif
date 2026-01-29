@@ -101,8 +101,19 @@ class MermaidValidator:
                     continue
                 
                 # Check for unclosed brackets/parentheses
-                open_brackets = stripped.count('[') + stripped.count('(') + stripped.count('{')
-                close_brackets = stripped.count(']') + stripped.count(')') + stripped.count('}')
+                # BUT: Skip ER diagram cardinality symbols (||--o{, }o--||, etc.)
+                # ER diagrams use { and } in relationship syntax, not as brackets
+                
+                # Remove ER cardinality patterns before counting brackets
+                line_without_er = stripped
+                if 'erdiagram' in first_line:
+                    # Remove common ER cardinality patterns
+                    er_patterns = ['||--o{', '}o--||', '||--||', 'o{', '}o', '|{', '}|']
+                    for pattern in er_patterns:
+                        line_without_er = line_without_er.replace(pattern, '')
+                
+                open_brackets = line_without_er.count('[') + line_without_er.count('(') + line_without_er.count('{')
+                close_brackets = line_without_er.count(']') + line_without_er.count(')') + line_without_er.count('}')
                 
                 if open_brackets != close_brackets:
                     errors.append({

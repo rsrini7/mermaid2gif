@@ -26,6 +26,7 @@ Supported diagram types:
 - sequenceDiagram
 - classDiagram
 - stateDiagram-v2
+- erDiagram (Entity-Relationship diagram)
 
 Output JSON with the following structure:
 {
@@ -57,11 +58,17 @@ CRITICAL SYNTAX RULES:
    - CORRECT: participant User\nparticipant System
    - WRONG: participant User(Client)  // Parentheses fail
 
-6. **ER Diagrams**: Use simple entity and relationship names
-   - CORRECT: TEACHER ||--o{ DEPARTMENT : "belongs to"
-   - WRONG: TEACHER(id, name) ||--o{ DEPT : teaches  // Attributes in entity name fail
-   - Note: Define entities first, relationships second
-   - Use simple relationship labels in quotes
+6. **ER Diagrams**: CRITICAL - ER diagrams have unique syntax!
+   - Start with: erDiagram
+   - Cardinality symbols: ||--o{ (one-to-many), }o--|| (many-to-one), ||--|| (one-to-one)
+   - CORRECT EXAMPLE:
+     erDiagram
+         TEACHER ||--o{ DEPARTMENT : teaches
+         STUDENT }o--|| DEPARTMENT : belongs
+   - WRONG: TEACHER(id, name) ||--o{ DEPT : teaches  // NO attributes in entity names
+   - WRONG: TEACHER --> DEPARTMENT  // Use proper ER cardinality symbols
+   - Entity names: UPPERCASE, no spaces, no special chars
+   - Relationship labels: Simple words in quotes or without quotes
 
 Best Practices:
 - Keep diagrams simple and focused (5-10 nodes max)

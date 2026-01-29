@@ -43,6 +43,13 @@ COMMON SYNTAX ERRORS TO FIX:
    - ERROR: A[Start --> B[End]
    - FIX: A[Start] --> B[End]
 
+6. **ER Diagram Syntax Errors**
+   - ERROR: TEACHER --> DEPARTMENT (wrong arrow)
+   - FIX: TEACHER ||--o{ DEPARTMENT : teaches
+   - ERROR: TEACHER(id, name) ||--o{ DEPT (attributes in entity)
+   - FIX: TEACHER ||--o{ DEPARTMENT : teaches
+   - Cardinality: ||--o{ (one-to-many), }o--|| (many-to-one), ||--|| (one-to-one)
+
 FIXING STRATEGY:
 1. Identify the parse error location (line number, character)
 2. Look for parentheses, pipes, quotes in that area
