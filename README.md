@@ -13,9 +13,10 @@ Mermaid-GIF is a fully autonomous, headless system that converts Mermaid diagram
 - 🤖 **Fully Autonomous:** Zero manual interaction required
 - 🎯 **Headless Execution:** CI/CD safe
 - 🔄 **Seamless Loops:** "Buffered Recording" technology eliminates blank frames
-- 🎬 **Flow Animation:** Path-based animation that flows correctly along arrows
-- � **Smart Viewport:** Auto-crops to diagram size (no excess white space)
-- �📊 **High Quality:** HD output with optimized 256-color palettes
+- 🎬 **Flow Animation:** Path-based animation for flowcharts, sequence, class, state, and ER diagrams
+- 📐 **Smart Viewport:** Auto-crops to diagram size (no excess white space)
+- 📊 **High Quality:** Sharp output with floyd_steinberg dithering and full palette generation
+- 🔧 **ER Diagram Support:** Full support for Entity-Relationship diagrams
 
 ## Architecture
 

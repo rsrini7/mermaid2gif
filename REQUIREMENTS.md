@@ -2,8 +2,8 @@
 
 ## Project: **Mermaid-GIF**
 
-**Version:** **6.0 (Mermaid Native Pivot)**
-**Status:** **Approved & Active**
+**Version:** **7.0 (Enhanced Quality & Multi-Diagram Support)**
+**Status:** **Production Ready**
 **Execution Model:** Agentic (LangGraph Directed Cyclic Graph)
 **Runtime:** Headless, deterministic, containerized
 
@@ -246,7 +246,7 @@ class GraphState(TypedDict):
 * **Strategy:** Two-Phase Browser Recording (Measure → Record).
 * **Logic:**
 1. **Phase 1 - Measurement:**
-   - Launch temporary browser context (no recording).
+   - Launch temporary browser context with 4000x3000 viewport (supports wide diagrams).
    - Load `animated_html` and wait for SVG.
    - Execute JavaScript: `svg.getBoundingClientRect()` to get exact dimensions.
    - Close measurement context.
@@ -265,8 +265,12 @@ class GraphState(TypedDict):
 
 ### 7.9 FFmpeg Transcoder Node
 
-* Palette-based GIF generation.
-* Enforce seamless looping.
+* **Quality Settings (Updated):**
+  - **Resolution:** Preserve original (no downscaling)
+  - **Palette:** 256 colors, `full` stats mode (better quality)
+  - **Dithering:** `floyd_steinberg` (sharp, balanced)
+  - **Trimming:** `ss=1.0`, `t=duration` (removes buffer)
+* **Output:** Seamlessly looping, high-quality GIF.
 
 ### 7.10 Final Output Node
 
