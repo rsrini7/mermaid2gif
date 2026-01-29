@@ -104,12 +104,45 @@ class AnimationApplicator:
                 
                 result = await page.evaluate("""
                     (duration) => {
-                        // Find all edge paths
-                        const edgePaths = document.querySelectorAll('.edgePath path, .flowchart-link');
+                        // Find all paths that represent connections/arrows across different diagram types
+                        // Flowcharts: .edgePath path, .flowchart-link
+                        // Sequence diagrams: .messageLine0, .messageLine1, line[class*="messageLine"]
+                        // Class diagrams: .relation line, path[class*="relation"]
+                        // State diagrams: .transition path
+                        // ER diagrams: .er.relationshipLine path
+                        const edgePaths = document.querySelectorAll(`
+                            .edgePath path, 
+                            .flowchart-link,
+                            line[class*="messageLine"],
+                            .messageLine0,
+                            .messageLine1,
+                            .relation line,
+                            path[class*="relation"],
+                            .transition path,
+                            .er.relationshipLine path
+                        `);
+                        
+                        let animatedCount = 0;
                         
                         edgePaths.forEach((path, index) => {
-                            // Get the total length of the path
-                            const pathLength = path.getTotalLength();
+                            // Get the total length of the path/line
+                            let pathLength;
+                            try {
+                                pathLength = path.getTotalLength();
+                            } catch (e) {
+                                // For <line> elements, calculate length manually
+                                if (path.tagName === 'line') {
+                                    const x1 = parseFloat(path.getAttribute('x1') || 0);
+                                    const y1 = parseFloat(path.getAttribute('y1') || 0);
+                                    const x2 = parseFloat(path.getAttribute('x2') || 0);
+                                    const y2 = parseFloat(path.getAttribute('y2') || 0);
+                                    pathLength = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                                } else {
+                                    return; // Skip if we can't get length
+                                }
+                            }
+                            
+                            if (pathLength <= 0) return;
                             
                             // Set up stroke-dasharray: 15% of path length for dash, 5% for gap
                             const dashLength = pathLength * 0.15;
@@ -133,6 +166,8 @@ class AnimationApplicator:
                             
                             // Apply animation with duration matching video length for seamless loop
                             path.style.animation = `${animationName} ${duration}s linear infinite`;
+                            
+                            animatedCount++;
                         });
                         
                         // Add subtle pulse to nodes with matching duration
@@ -146,7 +181,9 @@ class AnimationApplicator:
                                     opacity: 0.95;
                                 }
                             }
-                            .node rect, .node circle, .node polygon {
+                            .node rect, .node circle, .node polygon,
+                            .actor rect, .actor circle,
+                            .classGroup rect {
                                 animation: nodePulse ${duration * 1.5}s ease-in-out infinite;
                                 transform-origin: center;
                             }
@@ -155,7 +192,7 @@ class AnimationApplicator:
                         
                         return { 
                             success: true, 
-                            pathsAnimated: edgePaths.length,
+                            pathsAnimated: animatedCount,
                             animationDuration: duration
                         };
                     }
