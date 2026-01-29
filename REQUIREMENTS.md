@@ -241,14 +241,25 @@ class GraphState(TypedDict):
 
 
 
-### 7.8 Capture Controller Node
+### 7.8 Capture Controller Node (**Smart Viewport**)
 
-* **Strategy:** Browser Recording.
+* **Strategy:** Two-Phase Browser Recording (Measure → Record).
 * **Logic:**
-1. `page.set_content(animated_html)`.
-2. Start video capture.
-3. Wait for `duration` (from manifest).
-4. Stop capture and save `.webm`.
+1. **Phase 1 - Measurement:**
+   - Launch temporary browser context (no recording).
+   - Load `animated_html` and wait for SVG.
+   - Execute JavaScript: `svg.getBoundingClientRect()` to get exact dimensions.
+   - Close measurement context.
+2. **Phase 2 - Recording:**
+   - Calculate dimensions: `width = bbox.width + 40px`, `height = bbox.height + 40px`.
+   - Ensure even dimensions (FFmpeg requirement): round up to nearest even number.
+   - Create browser context with exact viewport size.
+   - Inject CSS to center content (`display: flex; justify-content: center; align-items: center`).
+   - Start video capture.
+   - Wait for `duration` (from manifest) + 2s buffer.
+   - Stop capture and save `.webm`.
+* **Output:** Store video path in `state["artifacts"]["video_path"]` and `state["video_path"]`.
+
 
 
 

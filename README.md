@@ -12,9 +12,10 @@ Mermaid-GIF is a fully autonomous, headless system that converts Mermaid diagram
 **Key Features:**
 - 🤖 **Fully Autonomous:** Zero manual interaction required
 - 🎯 **Headless Execution:** CI/CD safe
-- 🔄 **Seamles Loops:** "Buffered Recording" technology eliminates blank frames
+- 🔄 **Seamless Loops:** "Buffered Recording" technology eliminates blank frames
 - 🎬 **Flow Animation:** Path-based animation that flows correctly along arrows
-- 📊 **High Quality:** 1280px HD output with optimized 256-color palettes
+- � **Smart Viewport:** Auto-crops to diagram size (no excess white space)
+- �📊 **High Quality:** HD output with optimized 256-color palettes
 
 ## Architecture
 
@@ -75,16 +76,36 @@ cp .env.example .env
 ### Basic Usage
 
 ```bash
-# Convert text to GIF
+# Convert natural language to GIF
 python -m src.main "Create a flowchart showing user authentication flow"
-```
 
-### Direct Mermaid Code
-
-```bash
 # Convert Mermaid code directly
 python -m src.main "graph TD; A[Start] --> B{Check}; B -->|Yes| C[OK];"
 ```
+
+### CLI Options
+
+```bash
+# Read from file
+python -m src.main --input-file diagram.mmd
+python -m src.main -i diagram.mmd
+
+# Specify output path
+python -m src.main "graph TD; A-->B" --output my-diagram.gif
+python -m src.main -i diagram.mmd -o output/result.gif
+
+# Enable verbose logging
+python -m src.main "Create a sequence diagram" --verbose
+python -m src.main -i diagram.mmd -v
+
+# Combine options
+python -m src.main -i input.mmd -o output.gif -v
+```
+
+**Available Options:**
+- `-i, --input-file`: Path to file containing Mermaid diagram code
+- `-o, --output`: Output path for the generated GIF (default: auto-generated in `./output/`)
+- `-v, --verbose`: Enable verbose logging for debugging
 
 ## Configuration
 
@@ -150,6 +171,7 @@ mermaid-gif/
 2. **Headless Only:** No manual interaction required.
 3. **Deterministic:** Same input always produces same output.
 4. **Buffered Capture:** Recording time is `Duration + 2s` to ensure clean loops.
+5. **Smart Viewport:** Two-phase capture (measure → record) auto-crops to diagram size with 40px padding.
 
 ## License
 
