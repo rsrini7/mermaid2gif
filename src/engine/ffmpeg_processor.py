@@ -43,7 +43,7 @@ class FFmpegProcessor:
         video_path: Path,
         output_path: Path,
         fps: Optional[int] = None,
-        scale_width: int = 1280,
+        scale_width: Optional[int] = None,  # None = preserve original resolution
     ) -> None:
         """
         Convert video to optimized GIF using palette-based encoding.
@@ -57,7 +57,7 @@ class FFmpegProcessor:
             video_path: Path to input video file
             output_path: Path to output GIF file
             fps: Frame rate for output GIF (default: from config)
-            scale_width: Width for output GIF (height auto-scaled, default: 800)
+            scale_width: Width for output GIF (None = preserve original, default: None)
             
         Raises:
             FFmpegError: If FFmpeg processing fails
@@ -95,17 +95,27 @@ class FFmpegProcessor:
             palette = split_outputs[0].filter(
                 "palettegen",
                 max_colors=256,
-                stats_mode="diff"
+                stats_mode="full"  # Changed from 'diff' for better quality
             )
             
-            # Branch 2: Scale to higher resolution for better quality
-            scaled = split_outputs[1].filter("scale", w=scale_width, h=-1, flags="lanczos")
+            # Branch 2: Scale only if scale_width is specified
+            if scale_width:
+                scaled = split_outputs[1].filter(
+                    "scale", 
+                    w=scale_width, 
+                    h=-1, 
+                    flags="lanczos"  # High-quality scaling
+                )
+            else:
+                # Preserve original resolution for best quality
+                scaled = split_outputs[1]
             
-            # Apply palette with improved dithering
+            # Apply palette with optimized dithering for all diagram orientations
+            # floyd_steinberg provides excellent quality for both wide and tall diagrams
             output = ffmpeg.filter(
                 [scaled, palette],
                 "paletteuse",
-                dither="sierra2_4a",
+                dither="floyd_steinberg",  # Best balance of quality and sharpness
                 diff_mode="rectangle"
             )
             

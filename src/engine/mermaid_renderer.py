@@ -96,8 +96,9 @@ class MermaidRenderer:
             )
             
             try:
+                # Use wide viewport to allow LR diagrams to render at full resolution
                 page = await browser.new_page(
-                    viewport={"width": 1920, "height": 1080}
+                    viewport={"width": 4000, "height": 3000}
                 )
                 
                 # Create HTML shell with Mermaid.js
@@ -120,7 +121,7 @@ class MermaidRenderer:
             background: white;
         }}
         #diagram-container {{
-            max-width: 100%;
+            /* Removed max-width constraint to allow wide diagrams */
         }}
     </style>
 </head>
@@ -148,7 +149,7 @@ class MermaidRenderer:
                                 theme: 'default',
                                 securityLevel: 'loose',
                                 flowchart: {{
-                                    useMaxWidth: true,
+                                    useMaxWidth: false,  // Allow diagrams to render at natural width
                                     htmlLabels: true
                                 }}
                             }});

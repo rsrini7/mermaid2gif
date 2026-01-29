@@ -117,8 +117,9 @@ class CaptureController:
                 self.logger.info("Phase 1: Measuring diagram dimensions")
                 
                 # Create temporary context for measurement (no recording)
+                # Use a very wide viewport to allow LR diagrams to render at full resolution
                 measure_context = await browser.new_context(
-                    viewport={"width": 1920, "height": 1080}
+                    viewport={"width": 4000, "height": 3000}  # Wide viewport for accurate measurement
                 )
                 measure_page = await measure_context.new_page()
                 
