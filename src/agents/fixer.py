@@ -20,11 +20,41 @@ logger = get_logger("fix_agent")
 # System prompt for fix agent
 FIX_SYSTEM_PROMPT = """You are a Mermaid syntax repair specialist. Fix syntax and structural errors in Mermaid diagrams while preserving the original intent.
 
+COMMON SYNTAX ERRORS TO FIX:
+
+1. **Parentheses in Labels** (Most Common Error)
+   - ERROR: A[Return fib(n-1) + fib(n-2)]
+   - FIX: A[Return fib n-1 plus fib n-2]
+   - FIX: A[Return fibonacci sum]
+   
+2. **Special Characters in Labels**
+   - Remove: () | " ' ` 
+   - Replace with words: "Input/Output" → "Input or Output"
+   
+3. **Invalid Arrow Syntax**
+   - ERROR: A -> B (single dash)
+   - FIX: A --> B (double dash)
+   
+4. **Hyphens in Node IDs**
+   - ERROR: step-1[Start]
+   - FIX: step1[Start] or A[Start]
+
+5. **Unclosed Brackets**
+   - ERROR: A[Start --> B[End]
+   - FIX: A[Start] --> B[End]
+
+FIXING STRATEGY:
+1. Identify the parse error location (line number, character)
+2. Look for parentheses, pipes, quotes in that area
+3. Simplify the label by removing/replacing special characters
+4. Preserve the semantic meaning
+5. Ensure all brackets are balanced
+
 Rules:
 - Fix syntax errors ONLY
 - Preserve diagram structure and meaning
 - Do NOT add new features or nodes
-- Ensure output is valid Mermaid syntax
+- Simplify labels to avoid parser ambiguity
 - Use standard Mermaid diagram types only
 
 Output JSON with the following structure:
@@ -32,9 +62,6 @@ Output JSON with the following structure:
   "mermaid": "string - the fixed Mermaid diagram code"
 }
 """
-
-# Maximum retry attempts
-MAX_RETRIES = 2
 
 
 def mermaid_fix_agent(state: GraphState) -> GraphState:
@@ -57,18 +84,19 @@ def mermaid_fix_agent(state: GraphState) -> GraphState:
     Raises:
         RetryExhaustedError: If retry limit exceeded
     """
+    config = get_config()
+    max_retries = config.max_retry_attempts
+    
     logger.start(state, {
         "retry_count": state.get("retry_count", 0),
         "error_count": len(state.get("validation_errors", [])),
     })
     
     try:
-        config = get_config()
-        
         # Check retry count
         retry_count = state.get("retry_count", 0)
-        if retry_count >= MAX_RETRIES:
-            raise RetryExhaustedError("mermaid_fix_agent", MAX_RETRIES)
+        if retry_count >= max_retries:
+            raise RetryExhaustedError("mermaid_fix_agent", max_retries)
         
         # Get current Mermaid code and validation errors
         mermaid_code = state.get("mermaid_code", "")
@@ -149,8 +177,8 @@ Return the fixed Mermaid code."""
         return state
         
     except RetryExhaustedError:
-        logger.error(state, RetryExhaustedError("mermaid_fix_agent", MAX_RETRIES))
-        state["errors"].append(f"Max retries ({MAX_RETRIES}) exceeded in fix agent")
+        logger.error(state, RetryExhaustedError("mermaid_fix_agent", max_retries))
+        state["errors"].append(f"Max retries ({max_retries}) exceeded in fix agent")
         raise
     except Exception as e:
         logger.error(state, e)

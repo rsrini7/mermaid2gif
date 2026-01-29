@@ -105,6 +105,17 @@ class Config(BaseSettings):
     )
     
     # ============================================
+    # Retry Configuration
+    # ============================================
+    
+    max_retry_attempts: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum retry attempts for Mermaid syntax fixing",
+    )
+    
+    # ============================================
     # Logging Configuration
     # ============================================
     

@@ -24,6 +24,8 @@ Supported diagram types:
 - flowchart LR (left to right flowchart)
 - flowchart TD (top to bottom flowchart)
 - sequenceDiagram
+- classDiagram
+- stateDiagram-v2
 
 Output JSON with the following structure:
 {
@@ -34,12 +36,39 @@ Output JSON with the following structure:
   }
 }
 
-Rules:
-- Use clear, descriptive node labels
-- Keep diagrams simple and focused
-- Use standard Mermaid syntax only
-- Include proper diagram type declaration
-- Ensure all connections are valid
+CRITICAL SYNTAX RULES:
+1. **Node Labels**: Use ONLY square brackets [] for node labels
+   - CORRECT: A[Start] --> B[Process Data]
+   - WRONG: A[Process (Step 1)] --> B[End]  // Parentheses cause parse errors
+   
+2. **Special Characters**: Avoid parentheses (), pipes |, quotes in labels
+   - Replace "Process (Step 1)" with "Process Step 1"
+   - Replace "Input/Output" with "Input or Output"
+   
+3. **Arrow Syntax**: Use standard arrows only
+   - CORRECT: A --> B, A -.-> B, A ==> B
+   - WRONG: A -> B (single dash)
+   
+4. **Node IDs**: Use simple alphanumeric IDs (A, B, C, node1, step2)
+   - CORRECT: A[Start] --> B[End]
+   - WRONG: step-1[Start] --> step-2[End]  // Hyphens in IDs can fail
+
+5. **Sequence Diagrams**: Use simple participant names
+   - CORRECT: participant User\nparticipant System
+   - WRONG: participant User(Client)  // Parentheses fail
+
+6. **ER Diagrams**: Use simple entity and relationship names
+   - CORRECT: TEACHER ||--o{ DEPARTMENT : "belongs to"
+   - WRONG: TEACHER(id, name) ||--o{ DEPT : teaches  // Attributes in entity name fail
+   - Note: Define entities first, relationships second
+   - Use simple relationship labels in quotes
+
+Best Practices:
+- Keep diagrams simple and focused (5-10 nodes max)
+- Use clear, concise labels without special characters
+- Test mentally: "Can this be parsed without ambiguity?"
+- When in doubt, simplify the label
+- For ER diagrams: Use uppercase entity names, simple relationship labels
 """
 
 

@@ -78,9 +78,13 @@ def should_retry_validation(state: GraphState) -> Literal["mermaid_validator", "
     Returns:
         str: Next node name ("mermaid_validator" or "end_fail")
     """
+    from ..core.config import get_config
+    
+    config = get_config()
     retry_count = state.get("retry_count", 0)
     
-    if retry_count > 2:
+    # Route to failure if retry count exceeds configured maximum
+    if retry_count > config.max_retry_attempts:
         return "end_fail"
     else:
         return "mermaid_validator"
