@@ -64,6 +64,8 @@ output/
 *.png
 *.jpg
 
+!assets/*.gif
+
 # Logs
 *.log
 logs/
