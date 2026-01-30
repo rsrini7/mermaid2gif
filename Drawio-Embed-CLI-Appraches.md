@@ -8,7 +8,7 @@
 
 ## Problem Statement
 
-The mermaid-gif application uses Draw.io's embed mode to render Mermaid diagrams, but encounters a persistent "Loading..." screen that never clears, resulting in blank GIF outputs.
+The mermaid2gif application uses Draw.io's embed mode to render Mermaid diagrams, but encounters a persistent "Loading..." screen that never clears, resulting in blank GIF outputs.
 
 ---
 

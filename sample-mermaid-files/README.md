@@ -1,6 +1,6 @@
 # Sample Mermaid Files
 
-This directory contains example Mermaid diagram files for testing the mermaid-gif converter.
+This directory contains example Mermaid diagram files for testing the mermaid2gif converter.
 
 ## Files
 

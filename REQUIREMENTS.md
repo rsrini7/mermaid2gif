@@ -1,6 +1,6 @@
 # End-to-End Requirement Document
 
-## Project: **Mermaid-GIF**
+## Project: **mermaid2gif**
 
 **Version:** **7.0 (Enhanced Quality & Multi-Diagram Support)**
 **Status:** **Production Ready**
@@ -135,7 +135,7 @@ Retries are **node-local and bounded**.
 ## 5. Repository Structure (Enforced)
 
 ```text
-mermaid-gif/
+mermaid2gif/
 ├── config/
 │   ├── llm_config.yaml
 │   └── animation_presets.json

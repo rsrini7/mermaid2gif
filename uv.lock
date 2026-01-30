@@ -1029,7 +1029,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mermaid-gif"
+name = "mermaid2gif"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

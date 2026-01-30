@@ -3,13 +3,13 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mermaid-gif"
+name = "mermaid2gif"
 version = "1.0.0"
 description = "Autonomous Mermaid to Flow-Animated GIF Converter"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "Mermaid-GIF Team"}
+    {name = "Srinivasan Ragothaman", email = "rsrini7@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

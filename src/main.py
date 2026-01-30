@@ -26,7 +26,7 @@ from .utils.logger import configure_logging
 
 # Initialize CLI app
 app = typer.Typer(
-    name="mermaid-gif",
+    name="mermaid2gif",
     help="Convert Mermaid diagrams to animated GIFs using AI and browser automation",
     add_completion=False,
 )
