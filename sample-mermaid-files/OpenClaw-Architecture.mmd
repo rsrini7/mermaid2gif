@@ -1,0 +1,66 @@
+graph TB
+    User["You<br/>(telegram, discord, etc.)"]
+    
+    ChannelAdapter["channel adapter<br/>(normalize message,<br/>extract attachments)"]
+    
+    subgraph Gateway["Gateway Server (The Coordinator)<br/>routes messages to the correct session"]
+        classDef invisible fill-opacity:0.0,color:#FFF,stroke-width:0px;
+        spacer["<p style='width:0%;height:0px;margin:0'></p>"]:::invisible
+        SessionRouter["Session Router"]
+        LaneQueue["Lane Queue<br/>(control layer for sessions)"]
+        spacer ~~~ SessionRouter --> LaneQueue
+    end
+    
+    subgraph AgentRunner["Agent Runner"]
+        ModelResolver["Model<br/>Resolver"]
+        SystemPrompt["System Prompt Builder<br/>(tools, skills, memory)"]
+        SessionHistory["Session<br/>History Loader"]
+        ContextGuard["Context Window Guard<br/>(compact if needed)"]
+        
+        ModelResolver --> ContextGuard
+        SystemPrompt --> ContextGuard
+        SessionHistory --> ContextGuard
+    end
+    
+    LLMAPI["LLM API"]
+    
+    subgraph AgenticLoop["Agentic Loop"]
+        LoopDecision{"LLM response → tool call?<br/>↓<br/>Yes → execute<br/>↓<br/>No<br/>↓<br/>Final Text"}
+        ToolA["Tool A"]
+        ToolB["Tool B"]
+        ToolC["Tool C"]
+        ToolD["Tool D"]
+        
+        LoopDecision -.-> ToolA
+        LoopDecision -.-> ToolB
+        LoopDecision -.-> ToolC
+        LoopDecision -.-> ToolD
+    end
+    
+    subgraph ResponsePath["Response Path"]
+        ChannelAdapterOut["Channel<br/>Adapter"]
+        StreamChunks["Stream<br/>Chunks"]
+        StreamChunks --> ChannelAdapterOut
+    end
+    
+    User -->|message| ChannelAdapter
+    ChannelAdapter --> Gateway
+    LaneQueue --> AgentRunner
+    ContextGuard --> LLMAPI
+    LLMAPI --> AgenticLoop
+    
+    ToolA -.->|tool output| LLMAPI
+    ToolB -.->|tool output| LLMAPI
+    ToolC -.->|tool output| LLMAPI
+    ToolD -.->|tool output| LLMAPI
+    
+    LoopDecision -->|final| ResponsePath
+    ChannelAdapterOut --> User
+    
+    style User fill:#1e90ff,stroke:#0066cc,stroke-width:3px,color:#000
+    style LLMAPI fill:#27ae60,stroke:#229954,stroke-width:3px,color:#000
+    style LoopDecision fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:#000
+    style ToolA fill:#e79f8f,stroke:#c2185b,stroke-width:2px,color:#000
+    style ToolB fill:#ff5952,stroke:#e64a19,stroke-width:2px,color:#000
+    style ToolC fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#000
+    style ToolD fill:#ffc107,stroke:#ffa000,stroke-width:2px,color:#000
