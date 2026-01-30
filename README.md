@@ -190,6 +190,20 @@ mermaid-gif/
 4. **Buffered Capture:** Recording time is `Duration + 2s` to ensure clean loops.
 5. **Smart Viewport:** Two-phase capture (measure → record) auto-crops to diagram size with 40px padding.
 
+---
+
+## Contributors
+
+This project was developed with contributions from:
+
+- **[Srinivasan Ragothaman](https://github.com/rsrini7)** - Project Creator & Lead Developer
+
+### Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
 ## License
 
 MIT License - see LICENSE file for details
