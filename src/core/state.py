@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 class GraphState(TypedDict):
     """
-    Canonical state for the Mermaid-GIF LangGraph.
+    Canonical state for the Mermaid2GIF LangGraph.
     
     All nodes must interact exclusively through this state structure.
     No side effects or external state mutations are allowed.

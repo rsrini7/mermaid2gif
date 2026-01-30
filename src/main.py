@@ -1,5 +1,5 @@
 """
-Mermaid-GIF CLI Entry Point
+Mermaid2GIF CLI Entry Point
 
 This module provides the command-line interface for converting Mermaid diagrams
 or natural language descriptions into animated GIF files.
@@ -176,7 +176,7 @@ def main(
                 f"[cyan]GIF saved to:[/cyan] {final_path}\n"
                 f"[cyan]File size:[/cyan] {file_size:.1f} KB\n"
                 f"[cyan]Mermaid code:[/cyan] {len(final_state.get('mermaid_code', ''))} characters",
-                title="[bold green]Mermaid-GIF Generation Complete[/bold green]",
+                title="[bold green]Mermaid2GIF Generation Complete[/bold green]",
                 border_style="green",
             )
         )
@@ -209,7 +209,7 @@ def run(
     output: Optional[Path] = typer.Option(None, "--output", "-o"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Run the Mermaid-GIF generator."""
+    """Run the Mermaid2GIF generator."""
     main(prompt, input_file, output, verbose)
 
 

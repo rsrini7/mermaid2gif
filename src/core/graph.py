@@ -1,5 +1,5 @@
 """
-LangGraph orchestration for Mermaid-GIF system.
+LangGraph orchestration for Mermaid2GIF system.
 
 This module defines the state machine that orchestrates the entire
 Mermaid to GIF conversion pipeline using LangGraph.
@@ -232,7 +232,7 @@ def compile_graph():
 
 def run_graph(state: GraphState) -> GraphState:
     """
-    Run the complete Mermaid-GIF pipeline.
+    Run the complete Mermaid2GIF pipeline.
     
     Args:
         state: Initial graph state

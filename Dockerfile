@@ -1,4 +1,4 @@
-# Mermaid-GIF Containerized Deployment
+# Mermaid2GIF Containerized Deployment
 # Base: Python 3.11 on Debian (required for Playwright system dependencies)
 
 FROM python:3.11-slim-bookworm
@@ -53,12 +53,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Default command (placeholder - will be replaced with actual CLI)
 # For now, this runs a Python module check
-CMD ["python", "-c", "from src.core.graph import run_graph; print('Mermaid-GIF container ready')"]
+CMD ["python", "-c", "from src.core.graph import run_graph; print('Mermaid2GIF container ready')"]
 
 # Expose port (if running as a service in the future)
 EXPOSE 8000
 
 # Labels
-LABEL maintainer="Mermaid-GIF Team" \
+LABEL maintainer="Mermaid2GIF Team" \
       version="1.0.0" \
       description="Autonomous Mermaid to Flow-Animated GIF Converter"

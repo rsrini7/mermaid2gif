@@ -1,5 +1,5 @@
 """
-Structured logging for Mermaid-GIF system.
+Structured logging for Mermaid2GIF system.
 
 All logs follow a strict JSON schema for observability and debugging.
 Every LangGraph node must emit START and END/ERROR logs.

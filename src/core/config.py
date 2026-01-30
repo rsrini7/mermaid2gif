@@ -1,5 +1,5 @@
 """
-Pydantic Settings-based configuration for Mermaid-GIF.
+Pydantic Settings-based configuration for Mermaid2GIF.
 
 All secrets and configuration parameters are loaded from environment variables
 or .env file. Strict validation is enforced at startup.

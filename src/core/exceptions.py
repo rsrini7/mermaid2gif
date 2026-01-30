@@ -1,5 +1,5 @@
 """
-Custom exceptions for Mermaid-GIF system.
+Custom exceptions for Mermaid2GIF system.
 
 All exceptions follow a hierarchy to enable precise error handling
 and recovery strategies in the LangGraph.
@@ -7,7 +7,7 @@ and recovery strategies in the LangGraph.
 
 
 class MermaidGIFError(Exception):
-    """Base exception for all Mermaid-GIF errors."""
+    """Base exception for all Mermaid2GIF errors."""
     pass
 
 

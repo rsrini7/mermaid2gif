@@ -1,5 +1,5 @@
 """
-Mock-based smoke test for Mermaid-GIF system.
+Mock-based smoke test for Mermaid2GIF system.
 
 This test validates the complete LangGraph workflow WITHOUT real API calls
 or browser launches. All external dependencies are mocked.
@@ -16,7 +16,7 @@ from src.core.graph import run_graph
 
 class TestMermaidGIFSmoke(unittest.TestCase):
     """
-    Smoke test for end-to-end Mermaid-GIF workflow.
+    Smoke test for end-to-end Mermaid2GIF workflow.
     
     Tests the complete graph execution with mocked dependencies:
     - LiteLLM API calls

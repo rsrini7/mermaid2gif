@@ -1,1 +1,1 @@
-"""Test suite for Mermaid-GIF system."""
+"""Test suite for Mermaid2GIF system."""

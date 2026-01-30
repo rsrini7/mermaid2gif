@@ -1,4 +1,4 @@
-# Mermaid-GIF Docker Ignore
+# Mermaid2GIF Docker Ignore
 # Exclude unnecessary files from Docker build context
 
 # Python
