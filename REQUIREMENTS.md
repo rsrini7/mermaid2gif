@@ -233,6 +233,9 @@ class GraphState(TypedDict):
 3. Execute `mermaid.render(id, code)` via `page.evaluate()`.
 4. Capture the resulting SVG HTML.
 5. **Output:** Store raw HTML in `state["artifacts"]["render_html"]`.
+6. **Configuration:**
+   - **Flowcharts:** `useMaxWidth: false` for natural width.
+   - **Sequence:** Specialized config (font size 16px, actor width 200px) for readability.
 
 
 

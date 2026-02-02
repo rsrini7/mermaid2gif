@@ -26,6 +26,7 @@ mermaid2gif is a fully autonomous, headless system that converts Mermaid diagram
 - 🎬 **Flow Animation:** Path-based animation for all supported diagram types
 - 📐 **Smart Viewport:** Auto-crops to diagram size (no excess white space)
 - 📊 **High Quality:** Sharp output with floyd_steinberg dithering and full palette generation
+- 🔍 **HD Sequence Diagrams:** Specialized rendering configuration for crisp, readable text
 
 **Supported Diagram Types:**
 - ✅ Flowcharts (TD/LR)

@@ -1097,8 +1097,26 @@ This allows the Mermaid.js parser (which understands multi-line syntax) to handl
 
 **Mitigation**: We also added diagram-specific syntax rules to both the Intent Agent and Fixer Agent prompts, teaching the LLM proper syntax for each diagram type.
 
+**2. Sequence Diagram Readability**
 
-**2. Very Large Diagrams**
+Standard Mermaid.js rendering for sequence diagrams often produces text that is too small (12-14px) for video encoding, resulting in pixelated, unreadable labels in the final GIF.
+
+**The Solution:**
+We implemented specialized configuration injection for sequence diagrams in the rendering engine:
+```javascript
+sequence: {
+    useMaxWidth: false,
+    fontSize: 16,        // Increased from 14
+    messageFontSize: 16, // Increased from 14
+    width: 200,          // Wider actors (was 150)
+    actorMargin: 50      // More breathing room
+}
+```
+
+This ensures that sequence diagrams render at a "High Definition" natural scale, producing crisp, legible text even when downscaled or viewed on smaller screens.
+
+
+**3. Very Large Diagrams**
 
 Diagrams with > 50 nodes tend to:
 - Render slowly (> 5 seconds)
@@ -1107,7 +1125,7 @@ Diagrams with > 50 nodes tend to:
 
 **Mitigation**: We detect large diagrams and suggest splitting into multiple views.
 
-**3. Custom Themes**
+**4. Custom Themes**
 
 Mermaid supports custom themes, but they're not exposed in the API yet.
 
