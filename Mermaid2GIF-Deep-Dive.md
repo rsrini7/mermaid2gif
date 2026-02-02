@@ -598,6 +598,8 @@ Recording animated diagrams is **harder than it looks**. The naive approach:
 
 **Mermaid2GIF's Solution: Two-Phase Capture**
 
+![Capture-Controller-Seq.mmd.gif](assets/Capture-Controller-Seq.mmd.gif)
+
 **Phase 1: Measurement** (in temporary high-resolution viewport)
 ```javascript
 // Start with oversized viewport to prevent clipping
@@ -656,6 +658,8 @@ Converting video to GIF is deceptively complex. Most tools produce:
 - Stuttering (frame timing issues)
 
 **Mermaid2GIF uses a two-pass palette approach:**
+
+![High-Quality-FFmpeg-Pipeline-LR.gif](assets/High-Quality-FFmpeg-Pipeline-LR.gif)
 
 **Pass 1: Palette Generation**
 ```python
@@ -739,6 +743,8 @@ We evaluated several orchestration approaches:
 ✅ Execution visualization  
 
 ### The Graph Structure
+
+![Full-orchestration-graph-TD.gif](assets/Full-orchestration-graph-TD.gif)
 
 ```python
 workflow = StateGraph(GraphState)
