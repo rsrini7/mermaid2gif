@@ -1,0 +1,22 @@
+graph LR
+    Input[Raw .webm Video] --> Trim[SS=1.0 Trim]
+    Trim --> Split{Split Stream}
+    
+    %% Pass 1
+    Split -->|Stream A| PaletteGen[PaletteGen Filter]
+    PaletteGen -->|256 Colors| Palette((Optimal Palette))
+    
+    %% Pass 2
+    Split -->|Stream B| Scale[Lanczos Scaling]
+    Scale --> PaletteUse[PaletteUse Filter]
+    Palette --> PaletteUse
+    
+    %% Output
+    PaletteUse --> Dither[Floyd-Steinberg Dithering]
+    Dither --> Loop[Loop=0 Flag]
+    Loop --> Result[Final Animated GIF]
+    
+    subgraph "Two-Pass Encoding"
+    PaletteGen
+    PaletteUse
+    end

@@ -1,0 +1,27 @@
+graph TD
+    Start((Start)) --> Router{Input Router}
+    
+    %% Input Routing
+    Router -->|Natural Language| Intent[Intent Agent]
+    Router -->|Raw Mermaid / .mmd| Val[Mermaid Validator]
+    Intent --> Val
+    
+    %% Self-Healing Loop
+    Val -->|Invalid| Fixer[Fixer Agent]
+    Fixer -->|Retry <= 3| Val
+    Fixer -->|Retry > 3| Fail((End Fail))
+    
+    %% Rendering Pipeline
+    Val -->|Valid| Planner[Animation Planner]
+    Planner --> Render[Mermaid Renderer]
+    Render --> Applicator[Animation Applicator]
+    Applicator --> Capture[Capture Controller]
+    Capture --> FFmpeg[FFmpeg Transcoder]
+    
+    %% Terminal State
+    FFmpeg --> Success((End Success))
+    
+    style Start fill:#f9f,stroke:#333
+    style Success fill:#9f9,stroke:#333
+    style Fail fill:#f99,stroke:#333
+    style Fixer fill:#fff4dd,stroke:#d4a017

@@ -1,0 +1,42 @@
+classDiagram
+    class GraphState {
+        +str raw_input
+        +str raw_input_type
+        +str mermaid_code
+        +dict animation_manifest
+        +list validation_errors
+        +int retry_count
+        +dict artifacts
+        +list errors
+    }
+
+    class Config {
+        +str litellm_model
+        +str groq_api_key
+        +float default_duration
+        +int default_fps
+        +int max_retry_attempts
+    }
+
+    class IntentAgent {
+        +generate_mermaid(state: GraphState)
+    }
+
+    class FixerAgent {
+        +repair_syntax(state: GraphState)
+    }
+
+    class MermaidValidator {
+        +validate(code: str) bool
+    }
+
+    class CaptureController {
+        +measure_dimensions(html: str)
+        +record_video(html: str, dims: dict)
+    }
+
+    GraphState "1" --* "1" Config : governed by
+    IntentAgent ..> GraphState : updates
+    FixerAgent ..> GraphState : updates
+    MermaidValidator ..> GraphState : reads
+    CaptureController ..> GraphState : reads/writes

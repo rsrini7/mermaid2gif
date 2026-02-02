@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant C as Capture Controller
+    participant B as Headless Chromium
+    participant S as SVG Diagram
+
+    Note over C, S: Phase 1: Measurement (Probe)
+    C->>B: Launch with 4000x3000 Viewport
+    B->>S: Render Animated HTML
+    S-->>B: SVG Loaded
+    B->>C: return getBoundingClientRect()
+    C->>B: Close Measurement Context
+
+    Note over C, S: Phase 2: Recording (Action)
+    C->>C: Calculate: (Width/Height + 40px)
+    C->>C: Force Even Dimensions (FFmpeg Req)
+    C->>B: Launch Optimized Viewport
+    B->>S: Inject "Center-Align" CSS
+    C->>B: Start WebM Recording
+    Note right of B: Duration + 2.0s Buffer
+    C->>B: Save .webm and Close

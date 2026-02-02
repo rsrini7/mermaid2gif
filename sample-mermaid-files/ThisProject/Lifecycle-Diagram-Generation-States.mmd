@@ -1,0 +1,25 @@
+stateDiagram-v2
+    [*] --> InputReceived: raw_input
+    
+    state InputReceived {
+        [*] --> Router
+        Router --> IntentAgent: raw_input_type == "text"
+        Router --> Validator: raw_input_type == "mermaid"
+        IntentAgent --> Validator: mermaid_code generated
+    }
+
+    Validator --> FixerAgent: is_valid == False
+    FixerAgent --> Validator: retry_count < 3
+    FixerAgent --> [*]: retry_count >= 3 (Failure)
+
+    Validator --> RenderingPipeline: is_valid == True
+    
+    state RenderingPipeline {
+        [*] --> Renderer
+        Renderer --> Applicator: artifacts["render_html"]
+        Applicator --> Capture: artifacts["animated_html"]
+        Capture --> FFmpeg: artifacts["video_path"]
+    }
+
+    FFmpeg --> Success: gif_path generated
+    Success --> [*]
