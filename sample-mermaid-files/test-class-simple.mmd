@@ -1,0 +1,13 @@
+classDiagram
+    class GraphState {
+        +str raw_input
+        +str mermaid_code
+        +int retry_count
+    }
+
+    class Config {
+        +str litellm_model
+        +int max_retry_attempts
+    }
+
+    GraphState --> Config

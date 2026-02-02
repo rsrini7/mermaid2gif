@@ -101,25 +101,26 @@ class MermaidValidator:
                     continue
                 
                 # Check for unclosed brackets/parentheses
-                # BUT: Skip ER diagram cardinality symbols (||--o{, }o--||, etc.)
-                # ER diagrams use { and } in relationship syntax, not as brackets
+                # BUT: Skip for diagram types that use multi-line curly braces
+                # - ER diagrams: cardinality symbols (||--o{, }o--||)
+                # - Class diagrams: class body definitions (class Name { ... })
+                # - State diagrams: composite states (state Name { ... })
                 
-                # Remove ER cardinality patterns before counting brackets
-                line_without_er = stripped
-                if 'erdiagram' in first_line:
-                    # Remove common ER cardinality patterns
-                    er_patterns = ['||--o{', '}o--||', '||--||', 'o{', '}o', '|{', '}|']
-                    for pattern in er_patterns:
-                        line_without_er = line_without_er.replace(pattern, '')
+                # Skip bracket matching for these diagram types
+                skip_bracket_check = any(keyword in first_line for keyword in [
+                    'erdiagram', 'classdiagram', 'statediagram'
+                ])
                 
-                open_brackets = line_without_er.count('[') + line_without_er.count('(') + line_without_er.count('{')
-                close_brackets = line_without_er.count(']') + line_without_er.count(')') + line_without_er.count('}')
-                
-                if open_brackets != close_brackets:
-                    errors.append({
-                        "message": f"Mismatched brackets/parentheses",
-                        "line": i
-                    })
+                if not skip_bracket_check:
+                    open_brackets = stripped.count('[') + stripped.count('(') + stripped.count('{')
+                    close_brackets = stripped.count(']') + stripped.count(')') + stripped.count('}')
+                    
+                    if open_brackets != close_brackets:
+                        errors.append({
+                            "message": f"Mismatched brackets/parentheses",
+                            "line": i
+                        })
+
             
             # If we have errors, return them
             if errors:

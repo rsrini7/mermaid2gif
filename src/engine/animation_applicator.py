@@ -108,7 +108,7 @@ class AnimationApplicator:
                         // Flowcharts: .edgePath path, .flowchart-link
                         // Sequence diagrams: .messageLine0, .messageLine1, line[class*="messageLine"]
                         // Class diagrams: .relation line, path[class*="relation"]
-                        // State diagrams: .transition path
+                        // State diagrams: .transition path, path.transition, g.transition path, path[id*="transition"]
                         // ER diagrams: .er.relationshipLine path
                         const edgePaths = document.querySelectorAll(`
                             .edgePath path, 
@@ -119,6 +119,10 @@ class AnimationApplicator:
                             .relation line,
                             path[class*="relation"],
                             .transition path,
+                            path.transition,
+                            g.transition path,
+                            path[id*="transition"],
+                            path[id*="edge"],
                             .er.relationshipLine path
                         `);
                         
