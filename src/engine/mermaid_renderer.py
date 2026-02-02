@@ -151,6 +151,22 @@ class MermaidRenderer:
                                 flowchart: {{
                                     useMaxWidth: false,  // Allow diagrams to render at natural width
                                     htmlLabels: true
+                                }},
+                                sequence: {{
+                                    useMaxWidth: false,
+                                    diagramMarginX: 50,
+                                    diagramMarginY: 10,
+                                    actorMargin: 50,
+                                    width: 200,
+                                    height: 65,
+                                    boxMargin: 10,
+                                    boxTextMargin: 5,
+                                    noteMargin: 10,
+                                    messageMargin: 35,
+                                    mirrorActors: true,
+                                    fontSize: 16,
+                                    messageFontSize: 16,
+                                    noteFontSize: 14
                                 }}
                             }});
                             

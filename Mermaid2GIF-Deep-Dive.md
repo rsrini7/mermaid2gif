@@ -606,7 +606,7 @@ Recording animated diagrams is **harder than it looks**. The naive approach:
 
 **Mermaid2GIF's Solution: Two-Phase Capture**
 
-![Capture-Controller-Seq.mmd.gif](assets/Capture-Controller-Seq.mmd.gif)
+![Capture-Controller-Seq.gif](assets/Capture-Controller-Seq.gif)
 
 ⚡ Powered by Mermaid2GIF
 
