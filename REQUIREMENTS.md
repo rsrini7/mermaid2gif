@@ -203,6 +203,13 @@ class GraphState(TypedDict):
 
 ### 7.3 Mermaid Validator Node
 
+* **Purpose:** Validate Mermaid syntax before rendering.
+* **Implementation:** Basic syntax validation (diagram type, bracket matching for flowcharts).
+* **Special Handling:** Skip bracket matching for multi-line syntax diagrams:
+  - `erDiagram` - cardinality symbols use `{` and `}`
+  - `classDiagram` - class bodies use multi-line `{ ... }`
+  - `stateDiagram` - composite states use multi-line `{ ... }`
+* **Output:** Set `state["validation_errors"]` if invalid.
 * **Library:** `mermaid-parser-py`.
 * Parses Mermaid into structured representation.
 * Detects syntax errors before rendering to save cycles.
