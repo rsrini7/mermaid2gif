@@ -237,6 +237,8 @@ What makes this architecture special isn't the individual components—it's the 
 
 ![Lifecycle Diagram Generation States](assets/Lifecycle-Diagram-Generation-States.gif)
 
+⚡ Powered by Mermaid2GIF
+
 The single most important architectural decision in Mermaid2GIF is this:
 
 > **Language models generate. Traditional software validates.**
@@ -297,6 +299,8 @@ class GraphState(TypedDict):
 ```
 
 ![GraphState Class](assets/GraphState-Class.gif)
+
+⚡ Powered by Mermaid2GIF
 
 This state flows through every node. When a node executes, it:
 1. Reads relevant state
@@ -604,6 +608,8 @@ Recording animated diagrams is **harder than it looks**. The naive approach:
 
 ![Capture-Controller-Seq.mmd.gif](assets/Capture-Controller-Seq.mmd.gif)
 
+⚡ Powered by Mermaid2GIF
+
 **Phase 1: Measurement** (in temporary high-resolution viewport)
 ```javascript
 // Start with oversized viewport to prevent clipping
@@ -664,6 +670,8 @@ Converting video to GIF is deceptively complex. Most tools produce:
 **Mermaid2GIF uses a two-pass palette approach:**
 
 ![High-Quality-FFmpeg-Pipeline-LR.gif](assets/High-Quality-FFmpeg-Pipeline-LR.gif)
+
+⚡ Powered by Mermaid2GIF
 
 **Pass 1: Palette Generation**
 ```python
@@ -750,6 +758,8 @@ We evaluated several orchestration approaches:
 
 ![Full-orchestration-graph-TD.gif](assets/Full-orchestration-graph-TD.gif)
 
+⚡ Powered by Mermaid2GIF
+
 ```python
 workflow = StateGraph(GraphState)
 
@@ -794,6 +804,8 @@ app = workflow.compile()
 The validator → fixer loop is the heart of the self-healing system:
 
 ![Validator-Fixer-Loop.gif](assets/Validator-Fixer-Loop.gif)
+
+⚡ Powered by Mermaid2GIF
 
 <details>
 <summary>Mermaid Flowchart</summary>
@@ -1034,6 +1046,8 @@ No system is perfect. Here's what Mermaid2GIF struggles with:
 Certain diagram types use **multi-line curly braces** for structural definitions:
 
 ![ER-Diagram.gif](assets/ER-Diagram.gif)
+
+⚡ Powered by Mermaid2GIF
 
 <details>
 <summary>Mermaid ER Diagram</summary>
