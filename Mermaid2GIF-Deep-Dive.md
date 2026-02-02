@@ -235,6 +235,8 @@ What makes this architecture special isn't the individual components—it's the 
 
 ### Design Principle #1: LLMs Propose, Determinism Disposes
 
+![Lifecycle Diagram Generation States](assets/Lifecycle-Diagram-Generation-States.gif)
+
 The single most important architectural decision in Mermaid2GIF is this:
 
 > **Language models generate. Traditional software validates.**
@@ -293,6 +295,8 @@ class GraphState(TypedDict):
     animation_preset: str       # Animation style
     artifacts: Dict             # Rendered outputs
 ```
+
+![GraphState Class](assets/GraphState-Class.gif)
 
 This state flows through every node. When a node executes, it:
 1. Reads relevant state
