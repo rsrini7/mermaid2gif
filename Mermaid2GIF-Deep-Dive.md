@@ -1,4 +1,4 @@
-# From Text, Code, or Files to Animated Diagrams: Building Mermaid2GIF
+# Natural Language, Mermaid Code, or Files to Animated Diagrams: Building Mermaid2GIF
 
 ## How 9 Failed Draw.io Automation Attempts Led to a Production-Grade Mermaid Pipeline
 
