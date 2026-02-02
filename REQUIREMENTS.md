@@ -101,8 +101,8 @@ graph TD
     InputRouter -->|Mermaid| MermaidValidator
     IntentAgent --> MermaidValidator
     MermaidValidator -->|Invalid| FixAgent
-    FixAgent -->|Retry <= 2| MermaidValidator
-    FixAgent -->|Retry > 2| EndFail
+    FixAgent -->|Retry <= 3| MermaidValidator
+    FixAgent -->|Retry > 3| EndFail
     MermaidValidator -->|Valid| AnimationPlanner
     AnimationPlanner --> MermaidRenderer
     MermaidRenderer --> AnimationApplicator
@@ -210,7 +210,7 @@ class GraphState(TypedDict):
 ### 7.4 Mermaid Fix Agent
 
 * Repairs syntax only.
-* Max 2 retries.
+* Max 3 retries.
 
 ### 7.5 Animation Planner Node
 

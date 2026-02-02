@@ -1,0 +1,14 @@
+graph TD
+    A[Need to model data?] --> B{Needs mutation?}
+    B -->|No| C{Need inheritance?}
+    B -->|Yes| D[Standard Class]
+    
+    C -->|No| E[Record]
+    C -->|Yes| F{Wait for Future Java?}
+    
+    F -->|Yes| G["Carrier Class (Proposed)"]
+    F -->|No| D
+    
+    style E fill:#90EE90,color:#000
+    style D fill:#87CEEB,color:#000
+    style G fill:#FFD700,color:#000,stroke-dasharray: 5 5 
