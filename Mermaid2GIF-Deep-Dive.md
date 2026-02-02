@@ -1328,3 +1328,20 @@ For more usage examples and configuration options, see the README.
 ---
 
 *If you're building AI systems, I'd love to hear what patterns you've found effective. Drop a comment or reach out on GitHub.*
+
+## Technical FAQ: Mermaid2GIF Architecture and Implementation
+
+**1. How do you balance Mermaid syntax accuracy with the latency of self-correction loops?**
+Self-correction loops can impact performance, but the system architecture mitigates this through a "Fast Fail" strategy. By utilizing high-speed inference—such as Llama 3.3 70B via Groq—the latency penalty of a correction cycle is often negligible compared to browser rendering time. Additionally, syntax validation is performed locally to catch errors immediately before they ever reach the rendering stage. To maximize one-shot success, the system prompt restricts agents to a "Safe Subset" of syntactically stable diagram types like Flowcharts and Sequence diagrams.
+
+**2. Why choose a large model like Llama 3.3 70B over a smaller model fine-tuned for Mermaid?**
+While smaller specialized models excel at syntax, they often struggle with the complex reasoning required to convert abstract natural language requests into correct logical nodes. Large models like Llama 3.3 70B bridge this "Intent Gap" more effectively. Furthermore, the system requires strict JSON output to separate Mermaid code from animation manifests; larger models demonstrate higher reliability in adhering to these schemas without hallucinating keys or breaking structure.
+
+**3. How does the system prevent excessive white space and ensure proper diagram framing?**
+The system employs a "Smart Viewport" two-phase capture process. In Phase 1, the system launches a headless browser to measure the actual dimensions of the rendered SVG using `getBoundingClientRect()`. In Phase 2, the browser viewport is resized to match these exact dimensions—plus a 40-pixel padding—before recording begins. This ensures pixel-perfect framing without manual cropping.
+
+**4. What techniques are used to produce high-quality, seamlessly looping GIFs?**
+High visual fidelity is achieved through a two-pass media pipeline. The first pass analyzes the video to generate an optimal 256-color palette, and the second pass applies this palette using Floyd-Steinberg dithering to eliminate color banding. For seamless loops, the system uses "Buffered Recording," capturing a few extra seconds of video and then trimming the first 1.0 second to remove browser loading artifacts and initial animation glitches.
+
+**5. Why is the architecture designed as a Directed Cyclic Graph (DCG) instead of a linear pipeline?**
+A linear pipeline cannot effectively handle the non-deterministic nature of LLM outputs. By using a Directed Cyclic Graph (DCG) via LangGraph, the system can implement a "Self-Healing" loop. If the Validator node detects a syntax error, the system routes the state back to a Fixer Agent to repair the code. This cycle continues until the diagram is valid or the bounded retry limit—set to three attempts—is reached, ensuring the final output is always syntactically correct.
