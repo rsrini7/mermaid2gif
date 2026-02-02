@@ -1,0 +1,7 @@
+flowchart TD
+    A[Mermaid Code] --> B{Validator}
+    B -->|Valid| C[Renderer]
+    B -->|Invalid| D[Fixer Agent]
+    D --> E{Retry Count < Max?}
+    E -->|Yes| B
+    E -->|No| F[Raise Exception]
