@@ -39,18 +39,8 @@ mermaid2gif is a fully autonomous, headless system that converts Mermaid diagram
 
 The system is implemented as a **Directed Cyclic Graph (DCG)** using LangGraph:
 
-```mermaid
-graph TD
-    Input --> Intent_Agent
-    Intent_Agent --> Validator
-    Validator -->|Valid| Mermaid_Renderer
-    Validator -->|Invalid| Fix_Agent
-    Fix_Agent --> Validator
-    Mermaid_Renderer --> Animation_Applicator
-    Animation_Applicator --> Capture_Controller
-    Capture_Controller --> FFmpeg_Transcoder
-    FFmpeg_Transcoder --> Final_Output
-```
+![assets/Full-orchestration-graph-TD.gif](assets/Full-orchestration-graph-TD.gif)
+⚡ Powered by Mermaid2GIF
 
 ## Technology Stack
 
