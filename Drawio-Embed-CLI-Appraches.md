@@ -490,3 +490,35 @@ The current `animation_applicator.py` uses Playwright to inject JavaScript that:
 
 **Verdict:**
 This approach guarantees **mathematically perfect loops** regardless of diagram complexity. The Draw.io CLI (and even standard Mermaid CSS) cannot do this. We have successfully implemented this superior custom engine.
+
+---
+
+### 🧐 Can it be done with the official Draw.io MCP Server?
+
+**Short Answer:** **No, not for your specific "Headless GIF" use case.**
+
+I investigated the official `jgraph/drawio-mcp` and the community `lgazo/drawio-mcp-server`. While powerful, they solve a *different* problem than yours.
+
+#### 1. What the MCP Server Actually Does
+
+The Draw.io MCP server acts as a **bridge** between an LLM (like Claude) and a **human-operated** Draw.io instance.
+
+* **It requires a Browser Extension:** To work, you must install a companion extension and keep a Draw.io tab open. The MCP server sends commands to that *open tab*.
+* **It generates Files, not Pixels:** It can generate `.drawio` XML or `.svg` files, but it **does not render them to an image/GIF**. It relies on the client (VS Code, Claude Desktop, or Browser) to render the file.
+
+#### 2. Why it fails the "Headless GIF" Requirement
+
+Your goal is **Autonomous Automation** (Docker -> Text -> GIF).
+
+* **The "Capture" Gap:** Even if the MCP generates a perfect Draw.io XML file with animation enabled, you **still need a headless browser** to open that file, render the animation, and screen-record it.
+* **Back to Square One:** You would simply be swapping *Mermaid Generation* for *Draw.io XML Generation*. You would still face the same rendering challenges (launching a headless browser to record the SVG) that you solved with your "Mermaid Native" pivot.
+
+#### 3. Verdict: Stick to Mermaid Native
+
+Your current **Mermaid Native** approach is architecturally superior because:
+
+* **You own the Renderer:** `mermaid.render()` is deterministic and runs locally.
+* **You own the Animation:** You inject the CSS. In Draw.io, the animation logic is hidden inside their minified viewer code.
+* **Zero External Deps:** You don't need a running MCP server or an open browser tab.
+
+The Draw.io MCP is excellent for *humans* using AI to draft diagrams, but it is not a "Headless Rendering Engine."
